@@ -1,5 +1,5 @@
 import { FilterStatus, SortField, SortDirection } from '../types';
-import { Search, Filter, Calendar, MapPin, Package } from 'lucide-react';
+import { Search, Filter, Package } from 'lucide-react';
 
 interface LoadFiltersBarProps {
   searchQuery: string;

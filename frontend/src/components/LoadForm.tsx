@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { ShipmentCreate, ShipmentUpdate } from '../types';
 import { X, Calendar, MapPin, Package, DollarSign, Weight, Ruler } from 'lucide-react';
@@ -31,7 +30,6 @@ export function LoadForm({
   });
 
   const pickupDatetime = watch('pickup_datetime');
-  const deliveryDatetime = watch('delivery_datetime');
 
   const handleFormSubmit = (data: ShipmentCreate) => {
     onSubmit(data);

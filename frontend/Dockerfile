@@ -1,14 +1,21 @@
 # Frontend Dockerfile for React Shipments App
 # Stage 1: Build the React app
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies (including dev dependencies for build)
+RUN npm ci
 
 # Copy source code
 COPY . .

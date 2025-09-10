@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import { Shipment, ShipmentCreate, ShipmentUpdate, ShipmentFilters } from '../types';
+import { Shipment, ShipmentUpdate, ShipmentFilters } from '../types';
 
 // Query keys
 const QUERY_KEYS = {
@@ -83,7 +83,7 @@ export function useToggleShipmentStatus() {
 
       return { previousData };
     },
-    onError: (err, variables, context) => {
+    onError: (_, __, context) => {
       // If the mutation fails, roll back all queries
       if (context?.previousData) {
         context.previousData.forEach(({ queryKey, data }) => {

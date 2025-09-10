@@ -8,7 +8,6 @@ import {
   Edit, 
   Trash2, 
   Package, 
-  DollarSign, 
   Weight, 
   Ruler,
   Truck,
