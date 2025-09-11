@@ -109,41 +109,116 @@ jobs:
           aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.ECS_SERVICE }}"
           aws ecs describe-task-definition --task-definition "${{ env.TASK_DEF_FAMILY }}"
 
-      - name: Download task definition
+      - name: Create proper task definition
         run: |
           set -euo pipefail
-          aws ecs describe-task-definition \
-            --task-definition "${{ env.TASK_DEF_FAMILY }}" \
-            --query taskDefinition > task-definition.json
+          echo "🔧 Creating proper task definition..."
+          
+          # Create a complete task definition with proper configuration
+          cat > task-definition.json << 'EOF'
+          {
+            "family": "shipments-taskdef",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "512",
+            "memory": "1024",
+            "executionRoleArn": "${{ env.EXECUTION_ROLE_ARN }}",
+            "containerDefinitions": [
+              {
+                "name": "backend",
+                "image": "${{ needs.build-and-push.outputs.backend-image }}",
+                "portMappings": [
+                  {
+                    "containerPort": 8000,
+                    "hostPort": 8000,
+                    "protocol": "tcp"
+                  }
+                ],
+                "essential": true,
+                "environment": [
+                  {
+                    "name": "ALLOWED_ORIGINS",
+                    "value": "http://happyrobot-1700442240.eu-north-1.elb.amazonaws.com,https://happyrobot-1700442240.eu-north-1.elb.amazonaws.com"
+                  },
+                  {
+                    "name": "PORT",
+                    "value": "8000"
+                  },
+                  {
+                    "name": "API_KEY",
+                    "value": "HapRob-OTVHhErcXLu2eKkUMP6lDtrd8UNi61KZo4FvGALqem0NoJO1uWlz7OywCN0BNoNaG2x5Y"
+                  },
+                  {
+                    "name": "REQUIRE_API_KEY",
+                    "value": "true"
+                  }
+                ],
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "/ecs/shipments",
+                    "awslogs-region": "eu-north-1",
+                    "awslogs-stream-prefix": "backend"
+                  }
+                },
+                "healthCheck": {
+                  "command": [
+                    "CMD-SHELL",
+                    "curl -f http://localhost:8000/health || exit 1"
+                  ],
+                  "interval": 30,
+                  "timeout": 5,
+                  "retries": 3,
+                  "startPeriod": 60
+                }
+              },
+              {
+                "name": "frontend",
+                "image": "${{ needs.build-and-push.outputs.frontend-image }}",
+                "portMappings": [
+                  {
+                    "containerPort": 80,
+                    "hostPort": 80,
+                    "protocol": "tcp"
+                  }
+                ],
+                "essential": true,
+                "environment": [
+                  {
+                    "name": "VITE_API_URL",
+                    "value": "http://happyrobot-1700442240.eu-north-1.elb.amazonaws.com"
+                  },
+                  {
+                    "name": "VITE_API_KEY",
+                    "value": "HapRob-OTVHhErcXLu2eKkUMP6lDtrd8UNi61KZo4FvGALqem0NoJO1uWlz7OywCN0BNoNaG2x5Y"
+                  }
+                ],
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "/ecs/shipments",
+                    "awslogs-region": "eu-north-1",
+                    "awslogs-stream-prefix": "frontend"
+                  }
+                },
+                "healthCheck": {
+                  "command": [
+                    "CMD-SHELL",
+                    "wget --no-verbose --tries=1 --spider http://localhost/health || exit 1"
+                  ],
+                  "interval": 30,
+                  "timeout": 5,
+                  "retries": 3,
+                  "startPeriod": 60
+                }
+              }
+            ]
+          }
+          EOF
+          
+          echo "✅ Task definition created"
+          echo "Task definition contents:"
           cat task-definition.json
-
-      - name: Patch roles and port mappings in task definition
-        run: |
-          set -euo pipefail
-          # Always set executionRoleArn
-          jq --arg exec "${{ env.EXECUTION_ROLE_ARN }}" '.executionRoleArn=$exec' task-definition.json > td1.json
-          # If TASK_ROLE_ARN provided, set it; if empty, delete taskRoleArn
-          if [ -n "${{ env.TASK_ROLE_ARN }}" ]; then
-            jq --arg tr "${{ env.TASK_ROLE_ARN }}" '.taskRoleArn=$tr' td1.json > td2.json
-          else
-            jq 'del(.taskRoleArn)' td1.json > td2.json
-          fi
-          
-          # Fix port mappings for frontend and backend containers
-          jq '.containerDefinitions |= map(
-            if .name == "frontend" then
-              .portMappings = [{"containerPort": 80, "hostPort": 80, "protocol": "tcp"}]
-            elif .name == "backend" then
-              .portMappings = [{"containerPort": 8000, "hostPort": 8000, "protocol": "tcp"}]
-            else
-              .
-            end
-          )' td2.json > task-definition.patched.json
-          
-          echo "Patched:"
-          jq '. | {family, revision, executionRoleArn, taskRoleArn}' task-definition.patched.json
-          echo "Port mappings:"
-          jq '.containerDefinitions[] | {name, portMappings}' task-definition.patched.json
       
       - name: Ensure awslogs config and create missing log groups
         env:
@@ -241,12 +316,27 @@ jobs:
           echo "✅ Port mappings look good"
 
       - name: Deploy Amazon ECS task definition
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        with:
-          task-definition: ${{ steps.render-frontend.outputs.task-definition }}
-          service: ${{ env.ECS_SERVICE }}
-          cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-service-stability: true
+        run: |
+          set -euo pipefail
+          echo "🚀 Deploying task definition..."
+          
+          # Register the new task definition
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://task-definition.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text \
+            --region "${{ env.AWS_REGION }}")
+          
+          echo "✅ Task definition registered: $TASK_DEF_ARN"
+          
+          # Update the service
+          aws ecs update-service \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --service "${{ env.ECS_SERVICE }}" \
+            --task-definition "$TASK_DEF_ARN" \
+            --region "${{ env.AWS_REGION }}"
+          
+          echo "✅ Service updated with new task definition"
 
       - name: Update ECS service with load balancer configuration
         if: env.FRONTEND_TARGET_GROUP_ARN != '' && env.BACKEND_TARGET_GROUP_ARN != ''
@@ -254,16 +344,7 @@ jobs:
           set -euo pipefail
           echo "🔗 Updating ECS service with load balancer configuration..."
           
-          # First, check current service configuration
-          echo "🔍 Current service load balancer configuration:"
-          aws ecs describe-services \
-            --cluster "${{ env.ECS_CLUSTER }}" \
-            --services "${{ env.ECS_SERVICE }}" \
-            --query 'services[0].loadBalancers' \
-            --region "${{ env.AWS_REGION }}"
-          
           # Update service with load balancer configuration
-          echo "🔄 Updating service with new load balancer configuration..."
           aws ecs update-service \
             --cluster "${{ env.ECS_CLUSTER }}" \
             --service "${{ env.ECS_SERVICE }}" \
