@@ -66,10 +66,9 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest
           echo "frontend-image=$ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
-
   deploy:
     name: Deploy to ECS
-    needs: build-and-push
+    # needs: build-and-push  # Commented out since build-and-push is disabled
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
 
@@ -91,40 +90,34 @@ jobs:
             --task-definition "${{ env.TASK_DEF_FAMILY }}" \
             --query taskDefinition > task-definition.json
 
-      # Render backend image
-      - name: Render task def (backend)
-        id: render-backend
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: task-definition.json
-          container-name: ${{ env.CONTAINER_BACKEND }}
-          image: ${{ needs.build-and-push.outputs.backend-image }}
+      # # Render backend image
+      # - name: Render task def (backend)
+      #   id: render-backend
+      #   uses: aws-actions/amazon-ecs-render-task-definition@v1
+      #   with:
+      #     task-definition: task-definition.json
+      #     container-name: ${{ env.CONTAINER_BACKEND }}
+      #     image: ${{ needs.build-and-push.outputs.backend-image }}
 
-      # Render frontend image on top of previous render
-      - name: Render task def (frontend)
-        id: render-frontend
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: ${{ steps.render-backend.outputs.task-definition }}
-          container-name: ${{ env.CONTAINER_FRONTEND }}
-          image: ${{ needs.build-and-push.outputs.frontend-image }}
+      # # Render frontend image on top of previous render
+      # - name: Render task def (frontend)
+      #   id: render-frontend
+      #   uses: aws-actions/amazon-ecs-render-task-definition@v1
+      #   with:
+      #     task-definition: ${{ steps.render-backend.outputs.task-definition }}
+      #     container-name: ${{ env.CONTAINER_FRONTEND }}
+      #     image: ${{ needs.build-and-push.outputs.frontend-image }}
 
-      - name: Deploy Amazon ECS task definition
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        with:
-          task-definition: ${{ steps.render-frontend.outputs.task-definition }}
-          service: ${{ env.ECS_SERVICE }}
-          cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-service-stability: true
+      # - name: Deploy Amazon ECS task definition
+      #   uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      #   with:
+      #     task-definition: ${{ steps.render-frontend.outputs.task-definition }}
+      #     service: ${{ env.ECS_SERVICE }}
+      #     cluster: ${{ env.ECS_CLUSTER }}
+      #     wait-for-service-stability: true
 
       - name: Notify deployment status
         if: always()
         run: |
-          if [ "${{ job.status }}" = "success" ]; then
-            echo "✅ Deployment successful!"
-            echo "Backend image: ${{ needs.build-and-push.outputs.backend-image }}"
-            echo "Frontend image: ${{ needs.build-and-push.outputs.frontend-image }}"
-          else
-            echo "❌ Deployment failed!"
-            exit 1
-          fi
+          echo "⚠️ Deployment workflow is currently disabled"
+          echo "Build and push jobs are commented out"
