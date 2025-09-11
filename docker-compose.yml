@@ -8,6 +8,8 @@ services:
     environment:
       - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
       - PORT=8000
+      - API_KEY=HapRob-OTVHhErcXLu2eKkUMP6lDtrd8UNi61KZo4FvGALqem0NoJO1uWlz7OywCN0BNoNaG2x5Y
+      - REQUIRE_API_KEY=true
     volumes:
       - ./backend/data:/app/data:ro
     healthcheck:
@@ -25,6 +27,7 @@ services:
       - "5173:80"
     environment:
       - VITE_API_URL=http://localhost:8000
+      - VITE_API_KEY=HapRob-OTVHhErcXLu2eKkUMP6lDtrd8UNi61KZo4FvGALqem0NoJO1uWlz7OywCN0BNoNaG2x5Y
     depends_on:
       backend:
         condition: service_healthy
