@@ -1,6 +1,7 @@
 import { Shipment, ShipmentCreate, ShipmentUpdate, ShipmentFilters } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_KEY = import.meta.env.VITE_API_KEY || 'HapRob-OTVHhErcXLu2eKkUMP6lDtrd8UNi61KZo4FvGALqem0NoJO1uWlz7OywCN0BNoNaG2x5Y';
 
 class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -15,6 +16,7 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
+      'X-API-Key': API_KEY,
       ...options.headers,
     },
     ...options,

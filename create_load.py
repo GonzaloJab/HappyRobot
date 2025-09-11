@@ -18,7 +18,7 @@ class LoadCreator:
     
     def __init__(self, base_url: str = "http://localhost:8000", api_key: str = None):
         self.base_url = base_url
-        self.api_key = api_key or os.getenv("API_KEY", "happyrobot-api-key-2025")
+        self.api_key = api_key or os.getenv("API_KEY", "HapRob-OTVHhErcXLu2eKkUMP6lDtrd8UNi61KZo4FvGALqem0NoJO1uWlz7OywCN0BNoNaG2x5Y")
         self.session = requests.Session()
         self.session.headers.update({
             'Content-Type': 'application/json',
