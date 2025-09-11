@@ -169,6 +169,8 @@ jobs:
           aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.ECS_SERVICE }}" || echo "❌ Service not found"
           echo "Checking task definition..."
           aws ecs describe-task-definition --task-definition "${{ env.TASK_DEF_FAMILY }}" || echo "❌ Task definition not found"
+          echo "Checking current task definition execution role..."
+          aws ecs describe-task-definition --task-definition "${{ env.TASK_DEF_FAMILY }}" --query 'taskDefinition.executionRoleArn' --output text || echo "❌ Could not get execution role"
 
       - name: Download task definition
         run: |
@@ -178,6 +180,16 @@ jobs:
             --query taskDefinition > task-definition.json
           echo "✅ Task definition downloaded"
           echo "Task definition contents:"
+          cat task-definition.json
+
+      - name: Fix task definition execution role
+        run: |
+          echo "🔧 Fixing task definition execution role..."
+          # Update the execution role to use ecsTaskExecutionRole instead of GITHUB_deploy
+          jq '.executionRoleArn = "arn:aws:iam::354918374652:role/ecsTaskExecutionRole"' task-definition.json > task-definition-fixed.json
+          mv task-definition-fixed.json task-definition.json
+          echo "✅ Task definition execution role fixed"
+          echo "Updated task definition:"
           cat task-definition.json
 
       # Render backend image
