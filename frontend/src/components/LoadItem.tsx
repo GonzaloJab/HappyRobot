@@ -16,20 +16,14 @@ import {
 
 interface LoadItemProps {
   shipment: Shipment;
-  onToggleStatus: (id: string, status: 'pending' | 'agreed') => void;
   onEdit: (shipment: Shipment) => void;
   onDelete: (id: string) => void;
 }
 
-export function LoadItem({ shipment, onToggleStatus, onEdit, onDelete }: LoadItemProps) {
+export function LoadItem({ shipment, onEdit, onDelete }: LoadItemProps) {
   const [showMenu, setShowMenu] = useState(false);
 
-  const handleToggleStatus = () => {
-    const newStatus = shipment.status === 'pending' ? 'agreed' : 'pending';
-    onToggleStatus(shipment.id, newStatus);
-  };
-
-  const handleEdit = () => {
+  const handleAssignManually = () => {
     onEdit(shipment);
     setShowMenu(false);
   };
@@ -56,16 +50,7 @@ export function LoadItem({ shipment, onToggleStatus, onEdit, onDelete }: LoadIte
     <div className="card p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between">
         <div className="flex items-start space-x-3 flex-1">
-          {/* Status Checkbox */}
-          <input
-            type="checkbox"
-            checked={shipment.status === 'agreed'}
-            onChange={handleToggleStatus}
-            className="mt-1 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-            aria-label={`Mark ${shipment.load_id} as ${shipment.status === 'pending' ? 'agreed' : 'pending'}`}
-          />
-
-          {/* Main Content */}
+           {/* Main Content */}
           <div className="flex-1 min-w-0">
             {/* Header with Load ID and Status */}
             <div className="flex items-center justify-between mb-2">
@@ -196,11 +181,11 @@ export function LoadItem({ shipment, onToggleStatus, onEdit, onDelete }: LoadIte
               <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-20">
                 <div className="py-1">
                   <button
-                    onClick={handleEdit}
+                    onClick={handleAssignManually}
                     className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   >
                     <Edit className="h-4 w-4 mr-2" />
-                    Edit
+                    Assign Manually
                   </button>
                   <button
                     onClick={handleDelete}

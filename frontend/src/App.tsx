@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Plus, Loader2, Package } from 'lucide-react';
 import { Shipment, FilterStatus, SortField, SortDirection, ShipmentFilters } from './types';
-import { useShipments, useCreateShipment, useUpdateShipment, useDeleteShipment, useToggleShipmentStatus } from './hooks/useShipments';
+import { useShipments, useCreateShipment, useUpdateShipmentManual, useDeleteShipment, useShipmentStats } from './hooks/useShipments';
 import { LoadFiltersBar } from './components/LoadFiltersBar';
 import { LoadStatsBar } from './components/LoadStatsBar';
+import { HeadlineStatsBar } from './components/HeadlineStatsBar';
 import { LoadItem } from './components/LoadItem';
 import { LoadForm } from './components/LoadForm';
 import { DeleteConfirmDialog } from './components/DeleteConfirmDialog';
@@ -34,10 +35,10 @@ function App() {
 
   // Data hooks
   const { data: shipments = [], isLoading, error } = useShipments(filters);
+  const { data: stats, isLoading: statsLoading } = useShipmentStats(filters);
   const createShipment = useCreateShipment();
-  const updateShipment = useUpdateShipment();
+  const updateShipmentManual = useUpdateShipmentManual();
   const deleteShipment = useDeleteShipment();
-  const toggleStatus = useToggleShipmentStatus();
 
   // Handlers
   const handleCreateShipment = async (data: any) => {
@@ -51,7 +52,8 @@ function App() {
   const handleUpdateShipment = async (data: any) => {
     if (!editingShipment) return;
     try {
-      await updateShipment.mutateAsync({ id: editingShipment.id, data });
+      // Use manual endpoint for frontend updates
+      await updateShipmentManual.mutateAsync({ id: editingShipment.id, data });
     } catch (error) {
       console.error('Failed to update load:', error);
     }
@@ -65,15 +67,7 @@ function App() {
     }
   };
 
-  const handleToggleStatus = async (id: string, status: 'pending' | 'agreed') => {
-    try {
-      await toggleStatus.mutateAsync({ id, status });
-    } catch (error) {
-      console.error('Failed to toggle status:', error);
-    }
-  };
-
-  const handleEdit = (shipment: Shipment) => {
+  const handleAssignManually = (shipment: Shipment) => {
     setEditingShipment(shipment);
   };
 
@@ -132,7 +126,10 @@ function App() {
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Headline Stats */}
+        {stats && <HeadlineStatsBar stats={stats} isLoading={statsLoading} />}
+
+        {/* Additional Stats */}
         <LoadStatsBar shipments={shipments} />
 
         {/* Filters */}
@@ -174,8 +171,7 @@ function App() {
                 <LoadItem
                   key={shipment.id}
                   shipment={shipment}
-                  onToggleStatus={handleToggleStatus}
-                  onEdit={handleEdit}
+                  onEdit={handleAssignManually}
                   onDelete={handleDelete}
                 />
               ))}
@@ -197,7 +193,7 @@ function App() {
         isOpen={!!editingShipment}
         onClose={() => setEditingShipment(null)}
         onSubmit={handleUpdateShipment}
-        isLoading={updateShipment.isPending}
+        isLoading={updateShipmentManual.isPending}
         initialData={editingShipment || undefined}
         title="Edit Load"
       />

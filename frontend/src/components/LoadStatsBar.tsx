@@ -89,23 +89,26 @@ export function LoadStatsBar({ shipments }: LoadStatsBarProps) {
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
-      {stats.map((stat) => {
-        const Icon = stat.icon;
-        return (
-          <div key={stat.label} className={`${stat.bgColor} p-4 rounded-lg`}>
-            <div className="flex items-center">
-              <div className={`${stat.color} p-2 rounded-md`}>
-                <Icon className="h-5 w-5" />
-              </div>
-              <div className="ml-3">
-                <p className="text-xs font-medium text-gray-600">{stat.label}</p>
-                <p className={`text-lg font-bold ${stat.color}`}>{stat.value}</p>
+    <div className="mb-4">
+      <h3 className="text-sm font-medium text-gray-700 mb-3">Additional Statistics</h3>
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div key={stat.label} className={`${stat.bgColor} p-3 rounded-md`}>
+              <div className="flex items-center">
+                <div className={`${stat.color} p-1.5 rounded-sm`}>
+                  <Icon className="h-4 w-4" />
+                </div>
+                <div className="ml-2">
+                  <p className="text-xs font-medium text-gray-600">{stat.label}</p>
+                  <p className={`text-sm font-semibold ${stat.color}`}>{stat.value}</p>
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }

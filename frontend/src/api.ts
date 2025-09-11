@@ -1,4 +1,4 @@
-import { Shipment, ShipmentCreate, ShipmentUpdate, ShipmentFilters } from './types';
+import { Shipment, ShipmentCreate, ShipmentUpdate, ShipmentFilters, ShipmentStats } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_KEY = import.meta.env.VITE_API_KEY || 'HapRob-OTVHhErcXLu2eKkUMP6lDtrd8UNi61KZo4FvGALqem0NoJO1uWlz7OywCN0BNoNaG2x5Y';
@@ -73,4 +73,18 @@ export const api = {
     fetchApi<void>(`/shipments/${id}`, {
       method: 'DELETE',
     }),
+
+  // Update a shipment via manual frontend assignment
+  updateShipmentManual: (id: string, data: ShipmentUpdate): Promise<Shipment> =>
+    fetchApi<Shipment>(`/shipments/${id}/manual`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  // Get shipment statistics
+  getShipmentStats: (filters: ShipmentFilters = {}): Promise<ShipmentStats> => {
+    const queryString = buildQueryString(filters);
+    const endpoint = queryString ? `/shipments/stats?${queryString}` : '/shipments/stats';
+    return fetchApi<ShipmentStats>(endpoint);
+  },
 };

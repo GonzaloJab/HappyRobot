@@ -33,6 +33,13 @@ class ShipmentBase(BaseModel):
     # Agreed/Completed fields (required when status is 'agreed')
     agreed_price: Optional[float] = Field(None, ge=0, description="Agreed price for the load")
     carrier_description: Optional[str] = Field(None, max_length=200, description="Carrier description/name")
+    
+    # Assignment tracking fields
+    assigned_via_url: Optional[bool] = Field(False, description="True if assigned via URL/API, False if assigned manually in frontend")
+    avg_time_per_call_seconds: Optional[float] = Field(None, ge=0, description="Average time per call in seconds")
+    
+    # Status field
+    status: Optional[StatusType] = Field(default="pending", description="Load status")
 
     @field_validator('delivery_datetime')
     @classmethod
@@ -81,11 +88,12 @@ class ShipmentUpdate(BaseModel):
     status: Optional[StatusType] = None
     agreed_price: Optional[float] = Field(None, ge=0)
     carrier_description: Optional[str] = Field(None, max_length=200)
+    assigned_via_url: Optional[bool] = None
+    avg_time_per_call_seconds: Optional[float] = Field(None, ge=0)
 
 class Shipment(ShipmentBase):
     """Complete shipment/load model with all fields"""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Internal UUID")
-    status: StatusType = Field(default="pending", description="Load status")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
     updated_at: datetime = Field(default_factory=datetime.utcnow, description="Last update timestamp")
 
@@ -109,6 +117,8 @@ class Shipment(ShipmentBase):
                     "dimensions": "48x40x60 in",
                     "agreed_price": None,
                     "carrier_description": None,
+                    "assigned_via_url": False,
+                    "avg_time_per_call_seconds": None,
                     "status": "pending",
                     "created_at": "2025-01-01T00:00:00Z",
                     "updated_at": "2025-01-01T00:00:00Z"
@@ -130,5 +140,6 @@ class ShipmentFilters(BaseModel):
     delivery_from: Optional[datetime] = None
     delivery_to: Optional[datetime] = None
     q: Optional[str] = Field(None, description="Search in load_id, origin, destination, commodity_type, notes")
+    assigned_via_url: Optional[bool] = Field(None, description="Filter by assignment source: true for URL/API, false for manual")
     sort_by: Optional[str] = Field("created_at", description="Sort field")
     sort_order: Optional[Literal["asc", "desc"]] = Field("desc", description="Sort order")

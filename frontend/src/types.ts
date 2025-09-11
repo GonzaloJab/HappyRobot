@@ -27,6 +27,10 @@ export interface Shipment {
   status: 'pending' | 'agreed';
   created_at: string;
   updated_at: string;
+  
+  // Assignment tracking fields
+  assigned_via_url: boolean;
+  avg_time_per_call_seconds?: number;
 }
 
 export interface ShipmentCreate {
@@ -84,6 +88,19 @@ export interface ShipmentFilters {
   delivery_from?: string;
   delivery_to?: string;
   q?: string;
+  assigned_via_url?: boolean;
   sort_by?: SortField;
   sort_order?: SortDirection;
+}
+
+export interface AssignmentStats {
+  count: number;
+  total_agreed_price: number;
+  total_agreed_minus_loadboard: number;
+  avg_time_per_call_seconds: number;
+}
+
+export interface ShipmentStats {
+  manual: AssignmentStats;
+  url_api: AssignmentStats;
 }

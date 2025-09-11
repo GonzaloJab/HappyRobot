@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import { Shipment, ShipmentUpdate, ShipmentFilters } from '../types';
+import { Shipment, ShipmentUpdate, ShipmentFilters, ShipmentStats } from '../types';
 
 // Query keys
 const QUERY_KEYS = {
   shipments: (filters: ShipmentFilters) => ['shipments', filters] as const,
+  stats: (filters: ShipmentFilters) => ['shipments-stats', filters] as const,
 };
 
 // Get all shipments with filters
@@ -95,5 +96,28 @@ export function useToggleShipmentStatus() {
       // Always refetch after error or success
       queryClient.invalidateQueries({ queryKey: ['shipments'] });
     },
+  });
+}
+
+// Update shipment via manual frontend assignment
+export function useUpdateShipmentManual() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: ShipmentUpdate }) =>
+      api.updateShipmentManual(id, data),
+    onSuccess: () => {
+      // Invalidate and refetch all shipments queries
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['shipments-stats'] });
+    },
+  });
+}
+
+// Get shipment statistics
+export function useShipmentStats(filters: ShipmentFilters = {}): ReturnType<typeof useQuery<ShipmentStats>> {
+  return useQuery({
+    queryKey: QUERY_KEYS.stats(filters),
+    queryFn: () => api.getShipmentStats(filters),
   });
 }

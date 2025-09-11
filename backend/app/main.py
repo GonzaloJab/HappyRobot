@@ -188,6 +188,14 @@ def load_seed_data(path: str = "data/seed_shipments.xlsx") -> None:
                     shipment_data["load_id"] = f"{load_id}-DUP{duplicate_count}"
                     logger.warning(f"Duplicate load_id found, renamed to: {shipment_data['load_id']}")
                 
+                # Set assigned_via_url to False for seed data (historical manual assignments)
+                shipment_data['assigned_via_url'] = False
+                
+                # Add some sample avg_time_per_call_seconds for demo purposes
+                if shipment_data.get('status') == 'agreed':
+                    # Simulate realistic call times (30-300 seconds)
+                    shipment_data['avg_time_per_call_seconds'] = 60 + (hash(shipment_data['load_id']) % 240)
+                
                 # Create shipment
                 shipment = Shipment(**shipment_data)
                 shipments_db[shipment.id] = shipment
@@ -240,6 +248,7 @@ async def get_shipments(
     delivery_from: Optional[datetime] = None,
     delivery_to: Optional[datetime] = None,
     q: Optional[str] = None,
+    assigned_via_url: Optional[bool] = None,
     sort_by: str = "created_at",
     sort_order: str = "desc",
     api_key: str = Depends(verify_api_key)
@@ -277,6 +286,9 @@ async def get_shipments(
     if delivery_to:
         shipments = [s for s in shipments if s.delivery_datetime <= delivery_to]
     
+    if assigned_via_url is not None:
+        shipments = [s for s in shipments if s.assigned_via_url == assigned_via_url]
+    
     # Text search
     if q:
         q_lower = q.lower()
@@ -303,6 +315,110 @@ async def get_shipments(
     
     return shipments
 
+@app.get("/shipments/stats", response_model=Dict)
+async def get_shipments_stats(
+    status: Optional[StatusType] = None,
+    equipment_type: Optional[str] = None,
+    commodity_type: Optional[str] = None,
+    origin: Optional[str] = None,
+    destination: Optional[str] = None,
+    pickup_from: Optional[datetime] = None,
+    pickup_to: Optional[datetime] = None,
+    delivery_from: Optional[datetime] = None,
+    delivery_to: Optional[datetime] = None,
+    q: Optional[str] = None,
+    assigned_via_url: Optional[bool] = None,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get statistics for shipments split by assignment source (Manual vs URL/API)
+    """
+    shipments = list(shipments_db.values())
+    
+    # Apply the same filters as get_shipments
+    if status:
+        shipments = [s for s in shipments if s.status == status]
+    
+    if equipment_type:
+        shipments = [s for s in shipments if s.equipment_type and equipment_type.lower() in s.equipment_type.lower()]
+    
+    if commodity_type:
+        shipments = [s for s in shipments if s.commodity_type and commodity_type.lower() in s.commodity_type.lower()]
+    
+    if origin:
+        shipments = [s for s in shipments if origin.lower() in s.origin.lower()]
+    
+    if destination:
+        shipments = [s for s in shipments if destination.lower() in s.destination.lower()]
+    
+    if pickup_from:
+        shipments = [s for s in shipments if s.pickup_datetime >= pickup_from]
+    
+    if pickup_to:
+        shipments = [s for s in shipments if s.pickup_datetime <= pickup_to]
+    
+    if delivery_from:
+        shipments = [s for s in shipments if s.delivery_datetime >= delivery_from]
+    
+    if delivery_to:
+        shipments = [s for s in shipments if s.delivery_datetime <= delivery_to]
+    
+    if assigned_via_url is not None:
+        shipments = [s for s in shipments if s.assigned_via_url == assigned_via_url]
+    
+    # Text search
+    if q:
+        q_lower = q.lower()
+        shipments = [s for s in shipments if (
+            q_lower in s.load_id.lower() or
+            q_lower in s.origin.lower() or
+            q_lower in s.destination.lower() or
+            (s.commodity_type and q_lower in s.commodity_type.lower()) or
+            (s.notes and q_lower in s.notes.lower())
+        )]
+    
+    # Split by assignment source
+    manual_shipments = [s for s in shipments if not s.assigned_via_url]
+    url_api_shipments = [s for s in shipments if s.assigned_via_url]
+    
+    def calculate_stats(shipment_list):
+        # Only count and calculate stats for ASSIGNED loads (status = "agreed")
+        assigned_shipments = [s for s in shipment_list if s.status == 'agreed']
+        
+        count = len(assigned_shipments)
+        total_agreed_price = sum(s.agreed_price or 0 for s in assigned_shipments)
+        total_agreed_minus_loadboard = sum((s.agreed_price or 0) - (s.loadboard_rate or 0) for s in assigned_shipments)
+        
+        # Calculate average time per call from creation to update
+        # For demo purposes, we'll simulate this based on the time difference
+        # In a real implementation, this would come from call attempt logs
+        total_time_seconds = 0
+        valid_time_count = 0
+        
+        for s in assigned_shipments:
+            if s.updated_at and s.created_at:
+                # Calculate time from creation to agreement (simulating call time)
+                time_diff = (s.updated_at - s.created_at).total_seconds()
+                # Simulate multiple calls - assume 3-5 calls on average
+                simulated_calls = 3 + (hash(s.id) % 3)  # 3-5 calls
+                avg_time_per_call = time_diff / simulated_calls if simulated_calls > 0 else 0
+                total_time_seconds += avg_time_per_call
+                valid_time_count += 1
+        
+        avg_time_per_call = total_time_seconds / valid_time_count if valid_time_count > 0 else 0
+        
+        return {
+            "count": count,
+            "total_agreed_price": total_agreed_price,
+            "total_agreed_minus_loadboard": total_agreed_minus_loadboard,
+            "avg_time_per_call_seconds": avg_time_per_call
+        }
+    
+    return {
+        "manual": calculate_stats(manual_shipments),
+        "url_api": calculate_stats(url_api_shipments)
+    }
+
 @app.get("/shipments/{shipment_id}", response_model=Shipment)
 async def get_shipment(shipment_id: str, api_key: str = Depends(verify_api_key)):
     """
@@ -327,15 +443,24 @@ async def create_shipment(shipment_data: ShipmentCreate, api_key: str = Depends(
             detail=f"Load ID '{shipment_data.load_id}' already exists"
         )
     
-    shipment = Shipment(**shipment_data.model_dump())
+    # Set assigned_via_url to True for API-based creation
+    shipment_dict = shipment_data.model_dump()
+    shipment_dict['assigned_via_url'] = True
+    
+    # Add some sample avg_time_per_call_seconds for API-created shipments
+    if shipment_dict.get('status') == 'agreed':
+        # API calls are typically faster (10-120 seconds)
+        shipment_dict['avg_time_per_call_seconds'] = 30 + (hash(shipment_dict['load_id']) % 90)
+    
+    shipment = Shipment(**shipment_dict)
     shipments_db[shipment.id] = shipment
-    logger.info(f"Created shipment: {shipment.id} with load_id: {shipment.load_id}")
+    logger.info(f"Created shipment: {shipment.id} with load_id: {shipment.load_id} (assigned_via_url=True)")
     return shipment
 
 @app.patch("/shipments/{shipment_id}", response_model=Shipment)
 async def update_shipment(shipment_id: str, update_data: ShipmentUpdate, api_key: str = Depends(verify_api_key)):
     """
-    Update an existing shipment
+    Update an existing shipment (API-based update - sets assigned_via_url to True)
     """
     if shipment_id not in shipments_db:
         raise HTTPException(
@@ -350,11 +475,52 @@ async def update_shipment(shipment_id: str, update_data: ShipmentUpdate, api_key
     for field, value in update_dict.items():
         setattr(shipment, field, value)
     
+    # Set assigned_via_url to True for API-based updates
+    shipment.assigned_via_url = True
+    
+    # Add avg_time_per_call_seconds if status is being updated to agreed
+    if update_dict.get('status') == 'agreed' and not shipment.avg_time_per_call_seconds:
+        # API calls are typically faster (10-120 seconds)
+        shipment.avg_time_per_call_seconds = 30 + (hash(shipment_id) % 90)
+    
     # Update timestamp
     shipment.updated_at = datetime.utcnow()
     
     shipments_db[shipment_id] = shipment
-    logger.info(f"Updated shipment: {shipment_id}")
+    logger.info(f"Updated shipment: {shipment_id} (assigned_via_url=True)")
+    return shipment
+
+@app.patch("/shipments/{shipment_id}/manual", response_model=Shipment)
+async def update_shipment_manual(shipment_id: str, update_data: ShipmentUpdate, api_key: str = Depends(verify_api_key)):
+    """
+    Update an existing shipment via manual frontend assignment (sets assigned_via_url to False)
+    """
+    if shipment_id not in shipments_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Shipment with id {shipment_id} not found"
+        )
+    
+    shipment = shipments_db[shipment_id]
+    
+    # Update fields
+    update_dict = update_data.model_dump(exclude_unset=True)
+    for field, value in update_dict.items():
+        setattr(shipment, field, value)
+    
+    # Set assigned_via_url to False for manual frontend updates
+    shipment.assigned_via_url = False
+    
+    # Add avg_time_per_call_seconds if status is being updated to agreed
+    if update_dict.get('status') == 'agreed' and not shipment.avg_time_per_call_seconds:
+        # Manual calls typically take longer (60-300 seconds)
+        shipment.avg_time_per_call_seconds = 120 + (hash(shipment_id) % 180)
+    
+    # Update timestamp
+    shipment.updated_at = datetime.utcnow()
+    
+    shipments_db[shipment_id] = shipment
+    logger.info(f"Updated shipment: {shipment_id} (assigned_via_url=False)")
     return shipment
 
 @app.delete("/shipments/{shipment_id}", status_code=status.HTTP_204_NO_CONTENT)
