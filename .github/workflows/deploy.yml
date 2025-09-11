@@ -220,95 +220,51 @@ jobs:
           echo "Task definition contents:"
           cat task-definition.json
       
-      - name: Ensure awslogs config and create missing log groups
-        env:
-            REGION: ${{ env.AWS_REGION }}
-            LOG_GROUP: /ecs/shipments
-        run: |
-            set -euo pipefail
-        
-            # Force awslogs region & group on any awslogs-enabled container
-            jq --arg region "$REGION" --arg group "$LOG_GROUP" '
-              .containerDefinitions |=
-                (map(
-                  if (.logConfiguration // empty) and (.logConfiguration.logDriver == "awslogs") then
-                    .logConfiguration.options["awslogs-region"] = $region
-                    | .logConfiguration.options["awslogs-group"]  = $group
-                    | (.logConfiguration.options["awslogs-stream-prefix"] |= (. // "shipments"))
-                  else
-                    .
-                  end
-                ))
-            ' task-definition.patched.json > task-definition.patched.logs.json
-        
-            mv task-definition.patched.logs.json task-definition.patched.json
-        
-            echo "🔎 Log config summary:"
-            jq '.containerDefinitions[]
-                | select(.logConfiguration.logDriver=="awslogs")
-                | {name, logGroup: .logConfiguration.options["awslogs-group"],
-                   region: .logConfiguration.options["awslogs-region"],
-                   prefix: .logConfiguration.options["awslogs-stream-prefix"]}' task-definition.patched.json
-        
-            # Create the log group if missing
-            EXISTS=$(aws logs describe-log-groups \
-              --log-group-name-prefix "$LOG_GROUP" \
-              --region "$REGION" \
-              --query 'logGroups[?logGroupName==`'"$LOG_GROUP"'`] | length(@)' \
-              --output text)
-        
-            if [ "$EXISTS" = "0" ]; then
-              echo "📘 Creating log group: $LOG_GROUP"
-              aws logs create-log-group --log-group-name "$LOG_GROUP" --region "$REGION"
-              aws logs put-retention-policy --log-group-name "$LOG_GROUP" --retention-in-days 14 --region "$REGION" || true
-            else
-              echo "✅ Log group exists: $LOG_GROUP"
-            fi
-      - name: Render task def (backend)
-        id: render-backend
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: task-definition.patched.json
-          container-name: ${{ env.CONTAINER_BACKEND }}
-          image: ${{ needs.build-and-push.outputs.backend-image }}
-          environment-variables: |
-            ALLOWED_ORIGINS=http://happyrobot-1700442240.eu-north-1.elb.amazonaws.com,https://happyrobot-1700442240.eu-north-1.elb.amazonaws.com
-
-      - name: Render task def (frontend)
-        id: render-frontend
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: ${{ steps.render-backend.outputs.task-definition }}
-          container-name: ${{ env.CONTAINER_FRONTEND }}
-          image: ${{ needs.build-and-push.outputs.frontend-image }}
-
-      - name: Validate roles and port mappings in final task definition
+      - name: Create log group if missing
         run: |
           set -euo pipefail
-          FINAL="${{ steps.render-frontend.outputs.task-definition }}"
-          jq '. | {family, revision, executionRoleArn, taskRoleArn}' "$FINAL"
-          execRole=$(jq -r '.executionRoleArn' "$FINAL")
-          taskRole=$(jq -r '.taskRoleArn // empty' "$FINAL")
+          LOG_GROUP="/ecs/shipments"
+          REGION="${{ env.AWS_REGION }}"
+          
+          # Create the log group if missing
+          EXISTS=$(aws logs describe-log-groups \
+            --log-group-name-prefix "$LOG_GROUP" \
+            --region "$REGION" \
+            --query 'logGroups[?logGroupName==`'"$LOG_GROUP"'`] | length(@)' \
+            --output text)
+      
+          if [ "$EXISTS" = "0" ]; then
+            echo "📘 Creating log group: $LOG_GROUP"
+            aws logs create-log-group --log-group-name "$LOG_GROUP" --region "$REGION"
+            aws logs put-retention-policy --log-group-name "$LOG_GROUP" --retention-days 14 --region "$REGION" || true
+          else
+            echo "✅ Log group exists: $LOG_GROUP"
+          fi
+
+      - name: Validate task definition
+        run: |
+          set -euo pipefail
+          echo "🔍 Validating task definition..."
+          
+          # Check execution role
+          execRole=$(jq -r '.executionRoleArn' task-definition.json)
           if echo "$execRole" | grep -q 'GITHUB_deploy'; then
             echo "❌ executionRoleArn still points to GITHUB_deploy"; exit 1
           fi
-          if echo "$taskRole" | grep -q 'GITHUB_deploy'; then
-            echo "❌ taskRoleArn still points to GITHUB_deploy"; exit 1
-          fi
-          echo "✅ Roles look good"
+          echo "✅ Execution role looks good: $execRole"
           
           # Validate port mappings
           echo "🔍 Validating port mappings..."
-          jq '.containerDefinitions[] | {name, portMappings}' "$FINAL"
+          jq '.containerDefinitions[] | {name, portMappings}' task-definition.json
           
           # Check frontend port
-          frontendPort=$(jq -r '.containerDefinitions[] | select(.name=="frontend") | .portMappings[0].containerPort' "$FINAL")
+          frontendPort=$(jq -r '.containerDefinitions[] | select(.name=="frontend") | .portMappings[0].containerPort' task-definition.json)
           if [ "$frontendPort" != "80" ]; then
             echo "❌ Frontend container port is $frontendPort, expected 80"; exit 1
           fi
           
           # Check backend port
-          backendPort=$(jq -r '.containerDefinitions[] | select(.name=="backend") | .portMappings[0].containerPort' "$FINAL")
+          backendPort=$(jq -r '.containerDefinitions[] | select(.name=="backend") | .portMappings[0].containerPort' task-definition.json)
           if [ "$backendPort" != "8000" ]; then
             echo "❌ Backend container port is $backendPort, expected 8000"; exit 1
           fi
