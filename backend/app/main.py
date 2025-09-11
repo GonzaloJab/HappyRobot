@@ -428,7 +428,7 @@ async def get_random_shipment(
     
     # Filter by origin if provided
     if origin:
-        shipments = [s for s in shipments if origin.lower() in s.origin.lower()]
+        shipments = [s for s in shipments if origin.lower() in s.origin.lower() and s.status == "pending"]  
     
     if not shipments:
         origin_msg = f" with origin containing '{origin}'" if origin else ""
@@ -438,7 +438,7 @@ async def get_random_shipment(
         )
     
     # Return a random shipment
-    return random.choice(shipments)
+    return random.choice(shipments if status == "pending" else shipments)
 
 @app.get("/shipments/{shipment_id}", response_model=Shipment)
 async def get_shipment(shipment_id: str, api_key: str = Depends(verify_api_key)):

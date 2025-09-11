@@ -106,6 +106,10 @@ jobs:
     needs: build-and-push  # Commented out since build-and-push is disabled
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    # REQUIRED for OIDC:
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - name: Checkout code
@@ -114,9 +118,20 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::354918374652:role/ecsTaskExecutionRole
-          #arn:aws:iam::354918374652:role/GITHUB_deploy
+          role-to-assume: arn:aws:iam::354918374652:role/GITHUB_deploy
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Debug - AWS OIDC Authentication
+        run: |
+          echo "🔍 Debug: AWS OIDC Authentication"
+          echo "Repository: ${{ github.repository }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Checking AWS identity..."
+          aws sts get-caller-identity
+          echo "AWS CLI version:"
+          aws --version
+          echo "✅ OIDC authentication successful!"
 
       - name: Debug - Deploy Environment
         run: |
