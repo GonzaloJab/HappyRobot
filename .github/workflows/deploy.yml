@@ -12,7 +12,7 @@ env:
   ECR_FRONTEND_REPO: shipments-frontend
   ECS_CLUSTER: your-ecs-cluster-name
   ECS_SERVICE: your-ecs-service-name
-  TASK_DEF_FAMILY: your-taskdef-family
+  TASK_DEF_FAMILY: shipments-taskdef
   CONTAINER_BACKEND: backend
   CONTAINER_FRONTEND: frontend
 
