@@ -13,6 +13,7 @@ env:
   ECS_CLUSTER: arn:aws:ecs:eu-north-1:354918374652:cluster/HappyRobot-ECS
   ECS_SERVICE: arn:aws:ecs:eu-north-1:354918374652:service/HappyRobot-ECS/shipments-taskdef-service-f8gz4zjz
   TASK_DEF_FAMILY: shipments-taskdef
+  TASK_DEF_EXECUTION_ROLE: arn:aws:iam::354918374652:role/ecsTaskExecutionRole
   CONTAINER_BACKEND: backend
   CONTAINER_FRONTEND: frontend
 
@@ -36,7 +37,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::354918374652:role/GITHUB_deploy
+          role-to-assume: ${{ env.TASK_DEF_EXECUTION_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -118,7 +119,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::354918374652:role/GITHUB_deploy
+          role-to-assume: ${{ env.TASK_DEF_EXECUTION_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Debug - AWS OIDC Authentication
@@ -186,7 +187,7 @@ jobs:
         run: |
           echo "🔧 Fixing task definition execution role..."
           # Update the execution role to use ecsTaskExecutionRole instead of GITHUB_deploy
-          jq '.executionRoleArn = "arn:aws:iam::354918374652:role/ecsTaskExecutionRole"' task-definition.json > task-definition-fixed.json
+          jq '.executionRoleArn = "{{ env.TASK_DEF_EXECUTION_ROLE }}"' task-definition.json > task-definition-fixed.json
           mv task-definition-fixed.json task-definition.json
           echo "✅ Task definition execution role fixed"
           echo "Updated task definition:"
