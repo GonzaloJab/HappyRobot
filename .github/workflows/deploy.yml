@@ -94,7 +94,7 @@ jobs:
       # Render backend image
       - name: Render task def (backend)
         id: render-backend
-        uses: aws-actions/amazon-ecs-render-task-definition@v2
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: task-definition.json
           container-name: ${{ env.CONTAINER_BACKEND }}
@@ -103,7 +103,7 @@ jobs:
       # Render frontend image on top of previous render
       - name: Render task def (frontend)
         id: render-frontend
-        uses: aws-actions/amazon-ecs-render-task-definition@v2
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: ${{ steps.render-backend.outputs.task-definition }}
           container-name: ${{ env.CONTAINER_FRONTEND }}
