@@ -125,7 +125,51 @@ jobs:
           fi
           echo "Patched:"
           jq '. | {family, revision, executionRoleArn, taskRoleArn}' task-definition.patched.json
-
+      
+      - name: Ensure awslogs config and create missing log groups
+        env:
+            REGION: ${{ env.AWS_REGION }}
+            LOG_GROUP: /ecs/shipments
+        run: |
+            set -euo pipefail
+        
+            # Force awslogs region & group on any awslogs-enabled container
+            jq --arg region "$REGION" --arg group "$LOG_GROUP" '
+              .containerDefinitions |=
+                (map(
+                  if (.logConfiguration // empty) and (.logConfiguration.logDriver == "awslogs") then
+                    .logConfiguration.options["awslogs-region"] = $region
+                    | .logConfiguration.options["awslogs-group"]  = $group
+                    | (.logConfiguration.options["awslogs-stream-prefix"] |= (. // "shipments"))
+                  else
+                    .
+                  end
+                ))
+            ' task-definition.patched.json > task-definition.patched.logs.json
+        
+            mv task-definition.patched.logs.json task-definition.patched.json
+        
+            echo "🔎 Log config summary:"
+            jq '.containerDefinitions[]
+                | select(.logConfiguration.logDriver=="awslogs")
+                | {name, logGroup: .logConfiguration.options["awslogs-group"],
+                   region: .logConfiguration.options["awslogs-region"],
+                   prefix: .logConfiguration.options["awslogs-stream-prefix"]}' task-definition.patched.json
+        
+            # Create the log group if missing
+            EXISTS=$(aws logs describe-log-groups \
+              --log-group-name-prefix "$LOG_GROUP" \
+              --region "$REGION" \
+              --query 'logGroups[?logGroupName==`'"$LOG_GROUP"'`] | length(@)' \
+              --output text)
+        
+            if [ "$EXISTS" = "0" ]; then
+              echo "📘 Creating log group: $LOG_GROUP"
+              aws logs create-log-group --log-group-name "$LOG_GROUP" --region "$REGION"
+              aws logs put-retention-policy --log-group-name "$LOG_GROUP" --retention-in-days 14 --region "$REGION" || true
+            else
+              echo "✅ Log group exists: $LOG_GROUP"
+            fi
       - name: Render task def (backend)
         id: render-backend
         uses: aws-actions/amazon-ecs-render-task-definition@v1

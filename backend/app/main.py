@@ -420,25 +420,26 @@ async def get_random_shipment(
     api_key: str = Depends(verify_api_key)
 ):
     """
-    Get a random shipment/load. Optionally filter by origin.
+    Get a random shipment/load with pending status. Optionally filter by origin.
     """
     import random
     
-    shipments = list(shipments_db.values())
+    # Only get shipments with pending status
+    shipments = [s for s in shipments_db.values() if s.status == "pending"]
     
     # Filter by origin if provided
     if origin:
-        shipments = [s for s in shipments if origin.lower() in s.origin.lower() and s.status == "pending"]  
+        shipments = [s for s in shipments if origin.lower() in s.origin.lower()]
     
     if not shipments:
         origin_msg = f" with origin containing '{origin}'" if origin else ""
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No shipments found{origin_msg}"
+            detail=f"No pending shipments found{origin_msg}"
         )
     
-    # Return a random shipment
-    return random.choice(shipments if status == "pending" else shipments)
+    # Return a random pending shipment
+    return random.choice(shipments)
 
 @app.get("/shipments/{shipment_id}", response_model=Shipment)
 async def get_shipment(shipment_id: str, api_key: str = Depends(verify_api_key)):
