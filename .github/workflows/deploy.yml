@@ -19,6 +19,9 @@ env:
   # Container names in your task def
   CONTAINER_BACKEND: backend
   CONTAINER_FRONTEND: frontend
+  # Load balancer target groups (update these with your actual target group ARNs)
+  FRONTEND_TARGET_GROUP_ARN: arn:aws:elasticloadbalancing:eu-north-1:354918374652:targetgroup/APP-frontend/7a02fc7c09914764  # Set this to your frontend target group ARN
+  BACKEND_TARGET_GROUP_ARN: arn:aws:elasticloadbalancing:eu-north-1:354918374652:targetgroup/APP-backend/22b79997edea2035   # Set this to your backend target group ARN
 
 jobs:
   build-and-push:
@@ -64,9 +67,11 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
+          VITE_API_URL: ${{ secrets.ALB_URL || 'http://happyrobot-1700442240.eu-north-1.elb.amazonaws.com' }}
+          VITE_API_KEY: ${{ secrets.API_KEY || 'HapRob-OTVHhErcXLu2eKkUMP6lDtrd8UNi61KZo4FvGALqem0NoJO1uWlz7OywCN0BNoNaG2x5Y' }}
         run: |
           set -euo pipefail
-          docker build --progress=plain -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG ./frontend
+          docker build --progress=plain --build-arg VITE_API_URL="$VITE_API_URL" --build-arg VITE_API_KEY="$VITE_API_KEY" -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG ./frontend
           docker tag $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest
@@ -112,19 +117,33 @@ jobs:
             --query taskDefinition > task-definition.json
           cat task-definition.json
 
-      - name: Patch roles in task definition (execution + optional task role)
+      - name: Patch roles and port mappings in task definition
         run: |
           set -euo pipefail
           # Always set executionRoleArn
           jq --arg exec "${{ env.EXECUTION_ROLE_ARN }}" '.executionRoleArn=$exec' task-definition.json > td1.json
           # If TASK_ROLE_ARN provided, set it; if empty, delete taskRoleArn
           if [ -n "${{ env.TASK_ROLE_ARN }}" ]; then
-            jq --arg tr "${{ env.TASK_ROLE_ARN }}" '.taskRoleArn=$tr' td1.json > task-definition.patched.json
+            jq --arg tr "${{ env.TASK_ROLE_ARN }}" '.taskRoleArn=$tr' td1.json > td2.json
           else
-            jq 'del(.taskRoleArn)' td1.json > task-definition.patched.json
+            jq 'del(.taskRoleArn)' td1.json > td2.json
           fi
+          
+          # Fix port mappings for frontend and backend containers
+          jq '.containerDefinitions |= map(
+            if .name == "frontend" then
+              .portMappings = [{"containerPort": 80, "hostPort": 80, "protocol": "tcp"}]
+            elif .name == "backend" then
+              .portMappings = [{"containerPort": 8000, "hostPort": 8000, "protocol": "tcp"}]
+            else
+              .
+            end
+          )' td2.json > task-definition.patched.json
+          
           echo "Patched:"
           jq '. | {family, revision, executionRoleArn, taskRoleArn}' task-definition.patched.json
+          echo "Port mappings:"
+          jq '.containerDefinitions[] | {name, portMappings}' task-definition.patched.json
       
       - name: Ensure awslogs config and create missing log groups
         env:
@@ -177,6 +196,8 @@ jobs:
           task-definition: task-definition.patched.json
           container-name: ${{ env.CONTAINER_BACKEND }}
           image: ${{ needs.build-and-push.outputs.backend-image }}
+          environment-variables: |
+            ALLOWED_ORIGINS=http://happyrobot-1700442240.eu-north-1.elb.amazonaws.com,https://happyrobot-1700442240.eu-north-1.elb.amazonaws.com
 
       - name: Render task def (frontend)
         id: render-frontend
@@ -186,7 +207,7 @@ jobs:
           container-name: ${{ env.CONTAINER_FRONTEND }}
           image: ${{ needs.build-and-push.outputs.frontend-image }}
 
-      - name: Validate roles in final task definition
+      - name: Validate roles and port mappings in final task definition
         run: |
           set -euo pipefail
           FINAL="${{ steps.render-frontend.outputs.task-definition }}"
@@ -200,6 +221,24 @@ jobs:
             echo "❌ taskRoleArn still points to GITHUB_deploy"; exit 1
           fi
           echo "✅ Roles look good"
+          
+          # Validate port mappings
+          echo "🔍 Validating port mappings..."
+          jq '.containerDefinitions[] | {name, portMappings}' "$FINAL"
+          
+          # Check frontend port
+          frontendPort=$(jq -r '.containerDefinitions[] | select(.name=="frontend") | .portMappings[0].containerPort' "$FINAL")
+          if [ "$frontendPort" != "80" ]; then
+            echo "❌ Frontend container port is $frontendPort, expected 80"; exit 1
+          fi
+          
+          # Check backend port
+          backendPort=$(jq -r '.containerDefinitions[] | select(.name=="backend") | .portMappings[0].containerPort' "$FINAL")
+          if [ "$backendPort" != "8000" ]; then
+            echo "❌ Backend container port is $backendPort, expected 8000"; exit 1
+          fi
+          
+          echo "✅ Port mappings look good"
 
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
@@ -209,8 +248,57 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
 
+      - name: Update ECS service with load balancer configuration
+        if: env.FRONTEND_TARGET_GROUP_ARN != '' && env.BACKEND_TARGET_GROUP_ARN != ''
+        run: |
+          set -euo pipefail
+          echo "🔗 Updating ECS service with load balancer configuration..."
+          
+          # First, check current service configuration
+          echo "🔍 Current service load balancer configuration:"
+          aws ecs describe-services \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --services "${{ env.ECS_SERVICE }}" \
+            --query 'services[0].loadBalancers' \
+            --region "${{ env.AWS_REGION }}"
+          
+          # Update service with load balancer configuration
+          echo "🔄 Updating service with new load balancer configuration..."
+          aws ecs update-service \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --service "${{ env.ECS_SERVICE }}" \
+            --load-balancers \
+              targetGroupArn="${{ env.FRONTEND_TARGET_GROUP_ARN }}",containerName="${{ env.CONTAINER_FRONTEND }}",containerPort=80 \
+              targetGroupArn="${{ env.BACKEND_TARGET_GROUP_ARN }}",containerName="${{ env.CONTAINER_BACKEND }}",containerPort=8000 \
+            --region "${{ env.AWS_REGION }}"
+          
+          echo "✅ ECS service updated with load balancer configuration"
+          
+          # Wait for service to stabilize
+          echo "⏳ Waiting for service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster "${{ env.ECS_CLUSTER }}" \
+            --services "${{ env.ECS_SERVICE }}" \
+            --region "${{ env.AWS_REGION }}"
+          
+          echo "✅ Service is stable"
+
       - name: Post-deployment check
         run: |
           set -euo pipefail
+          echo "🔍 Checking ECS service status..."
           aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.ECS_SERVICE }}" \
             --query 'services[0].{status:status,runningCount:runningCount,pendingCount:pendingCount,desiredCount:desiredCount}'
+          
+          echo "🔍 Checking target group health..."
+          if [ -n "${{ env.BACKEND_TARGET_GROUP_ARN }}" ]; then
+            aws elbv2 describe-target-health --target-group-arn "${{ env.BACKEND_TARGET_GROUP_ARN }}" \
+              --query 'TargetHealthDescriptions[].{Target:Target.Id,Port:Target.Port,Health:TargetHealth.State}' \
+              --output table
+          fi
+          
+          if [ -n "${{ env.FRONTEND_TARGET_GROUP_ARN }}" ]; then
+            aws elbv2 describe-target-health --target-group-arn "${{ env.FRONTEND_TARGET_GROUP_ARN }}" \
+              --query 'TargetHealthDescriptions[].{Target:Target.Id,Port:Target.Port,Health:TargetHealth.State}' \
+              --output table
+          fi
