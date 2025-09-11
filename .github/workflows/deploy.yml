@@ -36,7 +36,8 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::354918374652:role/GITHUB_deploy
+          role-to-assume: arn:aws:iam::354918374652:role/ecsTaskExecutionRole
+          #arn:aws:iam::354918374652:role/GITHUB_deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -49,11 +50,35 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG ./backend
+          echo "🚀 Starting backend build..."
+          echo "Building: $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG"
+          
+          # Build with verbose output
+          docker build --progress=plain -t $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG ./backend
+          
+          echo "✅ Backend build completed"
+          echo "Tagging as latest..."
           docker tag $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG $ECR_REGISTRY/$ECR_BACKEND_REPO:latest
+          
+          echo "📤 Pushing images..."
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:latest
+          
+          echo "✅ Backend push completed"
           echo "backend-image=$ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Debug - Frontend Build Environment
+        run: |
+          echo "🔍 Debug: Frontend Build Environment"
+          echo "ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}"
+          echo "ECR_FRONTEND_REPO: ${{ env.ECR_FRONTEND_REPO }}"
+          echo "IMAGE_TAG: ${{ github.sha }}"
+          echo "Frontend directory contents:"
+          ls -la ./frontend/
+          echo "Frontend Dockerfile:"
+          cat ./frontend/Dockerfile || echo "No Dockerfile found"
+          echo "Frontend package.json:"
+          cat ./frontend/package.json || echo "No package.json found"
 
       - name: Build, tag, and push frontend image
         id: build-frontend
@@ -61,10 +86,21 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG ./frontend
+          echo "🚀 Starting frontend build..."
+          echo "Building: $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG"
+          
+          # Build with verbose output
+          docker build --progress=plain -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG ./frontend
+          
+          echo "✅ Frontend build completed"
+          echo "Tagging as latest..."
           docker tag $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest
+          
+          echo "📤 Pushing images..."
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest
+          
+          echo "✅ Frontend push completed"
           echo "frontend-image=$ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
   deploy:
     name: Deploy to ECS
@@ -76,6 +112,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Debug - Deploy Environment
+        run: |
+          echo "🔍 Debug: Deploy Environment"
+          echo "AWS_REGION: ${{ env.AWS_REGION }}"
+          echo "ECS_CLUSTER: ${{ env.ECS_CLUSTER }}"
+          echo "ECS_SERVICE: ${{ env.ECS_SERVICE }}"
+          echo "TASK_DEF_FAMILY: ${{ env.TASK_DEF_FAMILY }}"
+          echo "CONTAINER_BACKEND: ${{ env.CONTAINER_BACKEND }}"
+          echo "CONTAINER_FRONTEND: ${{ env.CONTAINER_FRONTEND }}"
+          echo "Backend image from build: ${{ needs.build-and-push.outputs.backend-image }}"
+          echo "Frontend image from build: ${{ needs.build-and-push.outputs.frontend-image }}"
+
       # You can keep static keys here if you want; or switch this to OIDC too.
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -84,13 +132,42 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Debug - AWS Credentials (Deploy)
+        run: |
+          echo "🔍 Debug: AWS Credentials (Deploy)"
+          aws sts get-caller-identity
+          echo "AWS CLI version:"
+          aws --version
+
+      - name: Debug - ECS Resources Check
+        run: |
+          echo "🔍 Debug: ECS Resources Check"
+          echo "Checking ECS cluster..."
+          aws ecs describe-clusters --clusters "${{ env.ECS_CLUSTER }}" || echo "❌ Cluster not found"
+          echo "Checking ECS service..."
+          aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.ECS_SERVICE }}" || echo "❌ Service not found"
+          echo "Checking task definition..."
+          aws ecs describe-task-definition --task-definition "${{ env.TASK_DEF_FAMILY }}" || echo "❌ Task definition not found"
+
       - name: Download task definition
         run: |
+          echo "📥 Downloading task definition..."
           aws ecs describe-task-definition \
             --task-definition "${{ env.TASK_DEF_FAMILY }}" \
             --query taskDefinition > task-definition.json
+          echo "✅ Task definition downloaded"
+          echo "Task definition contents:"
+          cat task-definition.json
 
       # Render backend image
+      - name: Debug - Backend Render Inputs
+        run: |
+          echo "🔍 Debug: Backend Render Inputs"
+          echo "Container name: ${{ env.CONTAINER_BACKEND }}"
+          echo "Backend image: ${{ needs.build-and-push.outputs.backend-image }}"
+          echo "Task definition file exists:"
+          ls -la task-definition.json
+
       - name: Render task def (backend)
         id: render-backend
         uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -99,7 +176,19 @@ jobs:
           container-name: ${{ env.CONTAINER_BACKEND }}
           image: ${{ needs.build-and-push.outputs.backend-image }}
 
+      - name: Debug - Backend Render Output
+        run: |
+          echo "🔍 Debug: Backend Render Output"
+          echo "Rendered task definition:"
+          echo "${{ steps.render-backend.outputs.task-definition }}"
+
       # Render frontend image on top of previous render
+      - name: Debug - Frontend Render Inputs
+        run: |
+          echo "🔍 Debug: Frontend Render Inputs"
+          echo "Container name: ${{ env.CONTAINER_FRONTEND }}"
+          echo "Frontend image: ${{ needs.build-and-push.outputs.frontend-image }}"
+
       - name: Render task def (frontend)
         id: render-frontend
         uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -107,6 +196,22 @@ jobs:
           task-definition: ${{ steps.render-backend.outputs.task-definition }}
           container-name: ${{ env.CONTAINER_FRONTEND }}
           image: ${{ needs.build-and-push.outputs.frontend-image }}
+
+      - name: Debug - Final Task Definition
+        run: |
+          echo "🔍 Debug: Final Task Definition"
+          echo "Final rendered task definition:"
+          echo "${{ steps.render-frontend.outputs.task-definition }}"
+
+      - name: Debug - Pre-Deployment Check
+        run: |
+          echo "🔍 Debug: Pre-Deployment Check"
+          echo "About to deploy with:"
+          echo "  Task definition: ${{ steps.render-frontend.outputs.task-definition }}"
+          echo "  Service: ${{ env.ECS_SERVICE }}"
+          echo "  Cluster: ${{ env.ECS_CLUSTER }}"
+          echo "Current service status:"
+          aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.ECS_SERVICE }}" --query 'services[0].{status:status,runningCount:runningCount,pendingCount:pendingCount,desiredCount:desiredCount}'
 
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
@@ -116,8 +221,21 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
 
+      - name: Debug - Post-Deployment Check
+        run: |
+          echo "🔍 Debug: Post-Deployment Check"
+          echo "Deployment completed. Checking service status..."
+          aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.ECS_SERVICE }}" --query 'services[0].{status:status,runningCount:runningCount,pendingCount:pendingCount,desiredCount:desiredCount,deployments:deployments[0].{status:status,createdAt:createdAt}}'
+          echo "Recent task events:"
+          aws ecs list-tasks --cluster "${{ env.ECS_CLUSTER }}" --service-name "${{ env.ECS_SERVICE }}" --query 'taskArns[0]' --output text | xargs -I {} aws ecs describe-tasks --cluster "${{ env.ECS_CLUSTER }}" --tasks {} --query 'tasks[0].{lastStatus:lastStatus,desiredStatus:desiredStatus,healthStatus:healthStatus}' || echo "No tasks found"
+
       - name: Notify deployment status
         if: always()
         run: |
-          echo "⚠️ Deployment workflow is currently disabled"
-          echo "Build and push jobs are commented out"
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Deployment completed successfully!"
+            echo "Service is running with the new task definition"
+          else
+            echo "❌ Deployment failed!"
+            echo "Check the logs above for details"
+          fi
