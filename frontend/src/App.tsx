@@ -65,7 +65,7 @@ function App() {
     }
   };
 
-  const handleToggleStatus = async (id: string, status: 'pending' | 'completed') => {
+  const handleToggleStatus = async (id: string, status: 'pending' | 'agreed') => {
     try {
       await toggleStatus.mutateAsync({ id, status });
     } catch (error) {

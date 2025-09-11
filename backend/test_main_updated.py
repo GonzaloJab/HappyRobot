@@ -263,12 +263,12 @@ class TestUpdateShipment:
         shipment_id = create_response.json()["id"]
         
         # Update the status
-        update_data = {"status": "completed"}
+        update_data = {"status": "agreed"}
         response = client.patch(f"/shipments/{shipment_id}", json=update_data)
         assert response.status_code == 200
         
         data = response.json()
-        assert data["status"] == "completed"
+        assert data["status"] == "agreed"
         assert data["updated_at"] != data["created_at"]
     
     def test_update_shipment_multiple_fields(self):
@@ -434,7 +434,7 @@ class TestDataIntegrity:
         
         # Update the shipment
         shipment_id = create_response.json()["id"]
-        update_response = client.patch(f"/shipments/{shipment_id}", json={"status": "completed"})
+        update_response = client.patch(f"/shipments/{shipment_id}", json={"status": "agreed"})
         updated_at = update_response.json()["updated_at"]
         
         assert updated_at != original_updated_at
@@ -455,7 +455,7 @@ class TestErrorHandling:
     def test_update_nonexistent_shipment(self):
         """Test updating a shipment that doesn't exist"""
         fake_id = "00000000-0000-0000-0000-000000000000"
-        response = client.patch(f"/shipments/{fake_id}", json={"status": "completed"})
+        response = client.patch(f"/shipments/{fake_id}", json={"status": "agreed"})
         assert response.status_code == 404
     
     def test_invalid_json(self):

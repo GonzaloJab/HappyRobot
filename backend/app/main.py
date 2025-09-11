@@ -142,7 +142,7 @@ def load_seed_data(path: str = "data/seed_shipments.xlsx") -> None:
                 # Handle status
                 if not pd.isna(row.get("status")):
                     status_val = str(row["status"]).lower().strip()
-                    if status_val in ["pending", "completed"]:
+                    if status_val in ["pending", "agreed"]:
                         shipment_data["status"] = status_val
                 
                 # Check for duplicate load_id

@@ -33,7 +33,7 @@ export function LoadFiltersBar({
   const statusOptions: { value: FilterStatus; label: string }[] = [
     { value: 'all', label: 'All' },
     { value: 'pending', label: 'Pending' },
-    { value: 'completed', label: 'Completed' },
+    { value: 'agreed', label: 'agreed' },
   ];
 
   const equipmentTypeOptions = [

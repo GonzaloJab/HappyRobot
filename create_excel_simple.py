@@ -18,12 +18,12 @@ for col, header in enumerate(headers, 1):
 # Add sample data
 data = [
     ['Electronics Package', 'New York NY', '2024-01-15', 'pending'],
-    ['Office Supplies', 'Los Angeles CA', '2024-01-20', 'completed'],
+    ['Office Supplies', 'Los Angeles CA', '2024-01-20', 'agreed'],
     ['Medical Equipment', 'Chicago IL', '2024-01-25', 'pending'],
     ['Furniture Delivery', 'Miami FL', '2024-01-30', 'pending'],
-    ['Books and Media', 'Seattle WA', '2024-02-05', 'completed'],
+    ['Books and Media', 'Seattle WA', '2024-02-05', 'agreed'],
     ['Automotive Parts', 'Detroit MI', '2024-02-10', 'pending'],
-    ['Clothing Shipment', 'Atlanta GA', '2024-02-15', 'completed'],
+    ['Clothing Shipment', 'Atlanta GA', '2024-02-15', 'agreed'],
     ['Food Products', 'Denver CO', '2024-02-20', 'pending']
 ]
 

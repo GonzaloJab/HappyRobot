@@ -1,9 +1,9 @@
 load_id,origin,destination,pickup_datetime,delivery_datetime,equipment_type,loadboard_rate,notes,weight,commodity_type,num_of_pieces,miles,dimensions,status
 LD-2025-0001,Madrid,Paris,2025-09-11T08:00:00Z,2025-09-12T18:00:00Z,Dry Van,1800.50,"Fragile—handle with care",2200,Electronics,120,765,"48x40x60 in",pending
-LD-2025-0002,Berlin,Barcelona,2025-09-13T06:30:00Z,2025-09-14T20:00:00Z,Reefer,2400,"Keep at 4°C",1800,Produce,90,930,"EU pallet, mixed",completed
+LD-2025-0002,Berlin,Barcelona,2025-09-13T06:30:00Z,2025-09-14T20:00:00Z,Reefer,2400,"Keep at 4°C",1800,Produce,90,930,"EU pallet, mixed",agreed   
 LD-2025-0003,Valencia,Lyon,2025-09-15T07:00:00Z,2025-09-16T17:00:00Z,Flatbed,2000,"Requires straps",2500,Machinery,30,640,"6m x 2m x 2m",pending
-LD-2025-0004,Amsterdam,Milan,2025-09-17T09:00:00Z,2025-09-18T19:30:00Z,Dry Van,1650,"Standard delivery",1500,Textiles,200,580,"Standard pallets",completed
+LD-2025-0004,Amsterdam,Milan,2025-09-17T09:00:00Z,2025-09-18T19:30:00Z,Dry Van,1650,"Standard delivery",1500,Textiles,200,580,"Standard pallets",agreed
 LD-2025-0005,Rome,Vienna,2025-09-19T05:30:00Z,2025-09-20T16:00:00Z,Reefer,2200,"Temperature controlled",1200,Food,75,720,"Refrigerated unit",pending
 LD-2025-0006,London,Frankfurt,2025-09-21T10:00:00Z,2025-09-22T21:00:00Z,Dry Van,1950,"Express delivery",1800,Electronics,95,650,"Careful handling",pending
-LD-2025-0007,Brussels,Madrid,2025-09-23T08:30:00Z,2025-09-24T18:30:00Z,Flatbed,2100,"Heavy machinery",3200,Industrial,15,1200,"Large equipment",completed
+LD-2025-0007,Brussels,Madrid,2025-09-23T08:30:00Z,2025-09-24T18:30:00Z,Flatbed,2100,"Heavy machinery",3200,Industrial,15,1200,"Large equipment",agreed
 LD-2025-0008,Hamburg,Stockholm,2025-09-25T06:00:00Z,2025-09-26T20:00:00Z,Reefer,2800,"Frozen goods",900,Food,60,850,"Cold chain",pending

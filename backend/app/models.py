@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 import uuid
 
 # Status enum for type safety
-StatusType = Literal["pending", "completed"]
+StatusType = Literal["pending", "agreed"]
 
 class ShipmentBase(BaseModel):
     """Base shipment/load model with common fields"""
@@ -29,6 +29,10 @@ class ShipmentBase(BaseModel):
     num_of_pieces: Optional[int] = Field(None, ge=0, description="Number of pieces")
     miles: Optional[float] = Field(None, ge=0, description="Distance in miles")
     dimensions: Optional[str] = Field(None, max_length=200, description="Dimensions (e.g., 48x40x60 in)")
+    
+    # Agreed/Completed fields (required when status is 'agreed')
+    agreed_price: Optional[float] = Field(None, ge=0, description="Agreed price for the load")
+    carrier_description: Optional[str] = Field(None, max_length=200, description="Carrier description/name")
 
     @field_validator('delivery_datetime')
     @classmethod
@@ -36,6 +40,22 @@ class ShipmentBase(BaseModel):
         """Validate that delivery is after pickup"""
         if info.data and 'pickup_datetime' in info.data and v <= info.data['pickup_datetime']:
             raise ValueError('delivery_datetime must be after pickup_datetime')
+        return v
+    
+    @field_validator('agreed_price')
+    @classmethod
+    def validate_agreed_price(cls, v, info):
+        """Validate agreed_price is provided when status is agreed"""
+        if info.data and info.data.get('status') == 'agreed' and v is None:
+            raise ValueError('agreed_price is required when status is agreed')
+        return v
+    
+    @field_validator('carrier_description')
+    @classmethod
+    def validate_carrier_description(cls, v, info):
+        """Validate carrier_description is provided when status is agreed"""
+        if info.data and info.data.get('status') == 'agreed' and (v is None or v.strip() == ''):
+            raise ValueError('carrier_description is required when status is agreed')
         return v
 
 class ShipmentCreate(ShipmentBase):
@@ -59,6 +79,8 @@ class ShipmentUpdate(BaseModel):
     miles: Optional[float] = Field(None, ge=0)
     dimensions: Optional[str] = Field(None, max_length=200)
     status: Optional[StatusType] = None
+    agreed_price: Optional[float] = Field(None, ge=0)
+    carrier_description: Optional[str] = Field(None, max_length=200)
 
 class Shipment(ShipmentBase):
     """Complete shipment/load model with all fields"""
@@ -85,6 +107,8 @@ class Shipment(ShipmentBase):
                     "num_of_pieces": 120,
                     "miles": 765,
                     "dimensions": "48x40x60 in",
+                    "agreed_price": None,
+                    "carrier_description": None,
                     "status": "pending",
                     "created_at": "2025-01-01T00:00:00Z",
                     "updated_at": "2025-01-01T00:00:00Z"

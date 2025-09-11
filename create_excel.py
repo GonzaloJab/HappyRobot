@@ -45,15 +45,15 @@ data = {
     ],
     'status': [
         'pending',
-        'completed',
+        'agreed',
         'pending',
         'pending',
-        'completed',
+        'agreed',
         'pending',
-        'completed',
+        'agreed',
         'pending',
         'pending',
-        'completed'
+        'agreed'
     ]
 }
 

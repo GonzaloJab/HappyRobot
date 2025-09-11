@@ -8,7 +8,7 @@ interface LoadStatsBarProps {
 export function LoadStatsBar({ shipments }: LoadStatsBarProps) {
   const total = shipments.length;
   const pending = shipments.filter(s => s.status === 'pending').length;
-  const completed = shipments.filter(s => s.status === 'completed').length;
+  const agreed = shipments.filter(s => s.status === 'agreed').length;
   
   // Calculate KPIs
   const totalMiles = shipments.reduce((sum, s) => sum + (s.miles || 0), 0);
@@ -52,8 +52,8 @@ export function LoadStatsBar({ shipments }: LoadStatsBarProps) {
       bgColor: 'bg-yellow-50',
     },
     {
-      label: 'Completed',
-      value: completed,
+      label: 'Assined',
+      value: agreed,
       icon: CheckCircle,
       color: 'text-green-600',
       bgColor: 'bg-green-50',

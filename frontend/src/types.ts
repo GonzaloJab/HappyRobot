@@ -19,8 +19,12 @@ export interface Shipment {
   miles?: number;
   dimensions?: string;
   
+  // Agreed/Completed fields
+  agreed_price?: number;
+  carrier_description?: string;
+  
   // System fields
-  status: 'pending' | 'completed';
+  status: 'pending' | 'agreed';
   created_at: string;
   updated_at: string;
 }
@@ -42,6 +46,8 @@ export interface ShipmentCreate {
   num_of_pieces?: number;
   miles?: number;
   dimensions?: string;
+  agreed_price?: number;
+  carrier_description?: string;
 }
 
 export interface ShipmentUpdate {
@@ -58,10 +64,12 @@ export interface ShipmentUpdate {
   num_of_pieces?: number;
   miles?: number;
   dimensions?: string;
-  status?: 'pending' | 'completed';
+  status?: 'pending' | 'agreed';
+  agreed_price?: number;
+  carrier_description?: string;
 }
 
-export type FilterStatus = 'all' | 'pending' | 'completed';
+export type FilterStatus = 'all' | 'pending' | 'agreed';
 export type SortField = 'created_at' | 'pickup_datetime' | 'delivery_datetime' | 'loadboard_rate' | 'miles';
 export type SortDirection = 'asc' | 'desc';
 

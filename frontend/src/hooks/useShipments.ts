@@ -60,7 +60,7 @@ export function useToggleShipmentStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: 'pending' | 'completed' }) =>
+    mutationFn: ({ id, status }: { id: string; status: 'pending' | 'agreed' }) =>
       api.updateShipment(id, { status }),
     onMutate: async ({ id, status }) => {
       // Cancel any outgoing refetches

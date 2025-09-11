@@ -1,6 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { ShipmentCreate, ShipmentUpdate } from '../types';
 import { X, Calendar, MapPin, Package, DollarSign, Weight, Ruler } from 'lucide-react';
+import { useEffect } from 'react';
 
 interface LoadFormProps {
   isOpen: boolean;
@@ -25,13 +26,22 @@ export function LoadForm({
     formState: { errors },
     reset,
     watch,
-  } = useForm<ShipmentCreate>({
+    setValue,
+  } = useForm<ShipmentCreate | ShipmentUpdate>({
     defaultValues: initialData
   });
 
   const pickupDatetime = watch('pickup_datetime');
+  const status = watch('status');
 
-  const handleFormSubmit = (data: ShipmentCreate) => {
+  // Reset form when initialData changes
+  useEffect(() => {
+    if (initialData) {
+      reset(initialData);
+    }
+  }, [initialData, reset]);
+
+  const handleFormSubmit = (data: ShipmentCreate | ShipmentUpdate) => {
     onSubmit(data);
     reset();
     onClose();
@@ -83,6 +93,21 @@ export function LoadForm({
                 {errors.load_id && (
                   <p className="mt-1 text-sm text-red-600">{errors.load_id.message}</p>
                 )}
+              </div>
+
+              {/* Status */}
+              <div>
+                <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
+                  Status
+                </label>
+                <select
+                  {...register('status')}
+                  id="status"
+                  className="input"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="agreed">Agreed</option>
+                </select>
               </div>
 
               {/* Equipment Type */}
@@ -169,6 +194,7 @@ export function LoadForm({
                   {...register('delivery_datetime', { 
                     required: 'Delivery datetime is required',
                     validate: (value) => {
+                      if (!value) return true; // Let required validation handle empty values
                       if (pickupDatetime && value <= pickupDatetime) {
                         return 'Delivery must be after pickup';
                       }
@@ -185,8 +211,24 @@ export function LoadForm({
               </div>
             </div>
 
+            {/* Status Indicator */}
+            {status === 'agreed' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-blue-800">
+                      <strong>Load Status: Agreed</strong> - Agreed Price and Carrier Description are required.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Financial and Weight Info */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div>
                 <label htmlFor="loadboard_rate" className="block text-sm font-medium text-gray-700 mb-1">
                   <DollarSign className="inline h-4 w-4 mr-1" />
@@ -200,6 +242,45 @@ export function LoadForm({
                   className="input"
                   placeholder="0.00"
                 />
+              </div>
+
+              <div>
+                <label htmlFor="agreed_price" className="block text-sm font-medium text-gray-700 mb-1">
+                  <DollarSign className="inline h-4 w-4 mr-1" />
+                  Agreed Price {status === 'agreed' && <span className="text-red-500">*</span>}
+                </label>
+                <input
+                  {...register('agreed_price', { 
+                    min: 0,
+                    required: status === 'agreed' ? 'Agreed price is required when status is agreed' : false
+                  })}
+                  type="number"
+                  step="0.01"
+                  id="agreed_price"
+                  className="input"
+                  placeholder="0.00"
+                />
+                {errors.agreed_price && (
+                  <p className="mt-1 text-sm text-red-600">{errors.agreed_price.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="carrier_description" className="block text-sm font-medium text-gray-700 mb-1">
+                  Carrier Description {status === 'agreed' && <span className="text-red-500">*</span>}
+                </label>
+                <input
+                  {...register('carrier_description', {
+                    required: status === 'agreed' ? 'Carrier description is required when status is agreed' : false
+                  })}
+                  type="text"
+                  id="carrier_description"
+                  className="input"
+                  placeholder="Carrier name or description"
+                />
+                {errors.carrier_description && (
+                  <p className="mt-1 text-sm text-red-600">{errors.carrier_description.message}</p>
+                )}
               </div>
 
               <div>
@@ -292,22 +373,46 @@ export function LoadForm({
             </div>
 
             {/* Actions */}
-            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="btn btn-secondary"
-                disabled={isLoading}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={isLoading}
-              >
-                {isLoading ? 'Saving...' : 'Save Load'}
-              </button>
+            <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+              {/* Quick Assign Button */}
+              {status !== 'agreed' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Set status to agreed and focus on agreed price field
+                    setValue('status', 'agreed');
+                    setTimeout(() => {
+                      const form = document.getElementById('agreed_price') as HTMLInputElement;
+                      if (form) {
+                        form.focus();
+                      }
+                    }, 100);
+                  }}
+                  className="btn btn-outline-primary"
+                  disabled={isLoading}
+                >
+                  Quick Assign Load
+                </button>
+              )}
+              
+              {/* Right side buttons */}
+              <div className="flex space-x-3">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="btn btn-secondary"
+                  disabled={isLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Saving...' : 'Save Load'}
+                </button>
+              </div>
             </div>
           </form>
         </div>

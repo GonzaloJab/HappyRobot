@@ -104,7 +104,7 @@ interface Shipment {
   title: string;        // Required
   destination?: string; // Optional
   eta?: string;         // ISO date string
-  status: 'pending' | 'completed';
+  status: 'pending' | 'agreed';
   created_at: string;   // ISO datetime
   updated_at: string;   // ISO datetime
 }
