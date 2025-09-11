@@ -36,7 +36,8 @@ class ShipmentBase(BaseModel):
     
     # Assignment tracking fields
     assigned_via_url: Optional[bool] = Field(False, description="True if assigned via URL/API, False if assigned manually in frontend")
-    avg_time_per_call_seconds: Optional[float] = Field(None, ge=0, description="Average time per call in seconds")
+    time_per_call_seconds: Optional[float] = Field(None, ge=0, description="Actual time per call in seconds (manually input)")
+    avg_time_per_call_seconds: Optional[float] = Field(None, ge=0, description="Average time per call in seconds (calculated from time_per_call_seconds)")
     
     # Status field
     status: Optional[StatusType] = Field(default="pending", description="Load status")
@@ -89,6 +90,7 @@ class ShipmentUpdate(BaseModel):
     agreed_price: Optional[float] = Field(None, ge=0)
     carrier_description: Optional[str] = Field(None, max_length=200)
     assigned_via_url: Optional[bool] = None
+    time_per_call_seconds: Optional[float] = Field(None, ge=0)
     avg_time_per_call_seconds: Optional[float] = Field(None, ge=0)
 
 class Shipment(ShipmentBase):
@@ -118,6 +120,7 @@ class Shipment(ShipmentBase):
                     "agreed_price": None,
                     "carrier_description": None,
                     "assigned_via_url": False,
+                    "time_per_call_seconds": None,
                     "avg_time_per_call_seconds": None,
                     "status": "pending",
                     "created_at": "2025-01-01T00:00:00Z",

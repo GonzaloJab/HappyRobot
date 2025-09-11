@@ -26,6 +26,8 @@ shipments_db: Dict[str, Shipment] = {}
 # API Key configuration
 API_KEY = os.getenv("API_KEY", "happyrobot-api-key-2025")  # Default key for development
 REQUIRE_API_KEY = os.getenv("REQUIRE_API_KEY", "true").lower() == "true"
+#print the first 10 characters of the API_KEY
+print("API_KEY:",API_KEY[:10])
 
 def verify_api_key(x_api_key: Optional[str] = Header(None)) -> str:
     """
@@ -389,20 +391,13 @@ async def get_shipments_stats(
         total_agreed_price = sum(s.agreed_price or 0 for s in assigned_shipments)
         total_agreed_minus_loadboard = sum((s.agreed_price or 0) - (s.loadboard_rate or 0) for s in assigned_shipments)
         
-        # Calculate average time per call from creation to update
-        # For demo purposes, we'll simulate this based on the time difference
-        # In a real implementation, this would come from call attempt logs
+        # Calculate average time per call using actual time_per_call_seconds values
         total_time_seconds = 0
         valid_time_count = 0
         
         for s in assigned_shipments:
-            if s.updated_at and s.created_at:
-                # Calculate time from creation to agreement (simulating call time)
-                time_diff = (s.updated_at - s.created_at).total_seconds()
-                # Simulate multiple calls - assume 3-5 calls on average
-                simulated_calls = 3 + (hash(s.id) % 3)  # 3-5 calls
-                avg_time_per_call = time_diff / simulated_calls if simulated_calls > 0 else 0
-                total_time_seconds += avg_time_per_call
+            if s.time_per_call_seconds is not None and s.time_per_call_seconds > 0:
+                total_time_seconds += s.time_per_call_seconds
                 valid_time_count += 1
         
         avg_time_per_call = total_time_seconds / valid_time_count if valid_time_count > 0 else 0
@@ -418,6 +413,32 @@ async def get_shipments_stats(
         "manual": calculate_stats(manual_shipments),
         "url_api": calculate_stats(url_api_shipments)
     }
+
+@app.get("/shipments/random", response_model=Shipment)
+async def get_random_shipment(
+    origin: Optional[str] = None,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get a random shipment/load. Optionally filter by origin.
+    """
+    import random
+    
+    shipments = list(shipments_db.values())
+    
+    # Filter by origin if provided
+    if origin:
+        shipments = [s for s in shipments if origin.lower() in s.origin.lower()]
+    
+    if not shipments:
+        origin_msg = f" with origin containing '{origin}'" if origin else ""
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No shipments found{origin_msg}"
+        )
+    
+    # Return a random shipment
+    return random.choice(shipments)
 
 @app.get("/shipments/{shipment_id}", response_model=Shipment)
 async def get_shipment(shipment_id: str, api_key: str = Depends(verify_api_key)):
@@ -478,10 +499,13 @@ async def update_shipment(shipment_id: str, update_data: ShipmentUpdate, api_key
     # Set assigned_via_url to True for API-based updates
     shipment.assigned_via_url = True
     
-    # Add avg_time_per_call_seconds if status is being updated to agreed
-    if update_dict.get('status') == 'agreed' and not shipment.avg_time_per_call_seconds:
-        # API calls are typically faster (10-120 seconds)
-        shipment.avg_time_per_call_seconds = 30 + (hash(shipment_id) % 90)
+    # Set avg_time_per_call_seconds from the provided time_per_call_seconds
+    if update_dict.get('time_per_call_seconds') is not None:
+        shipment.time_per_call_seconds = update_dict['time_per_call_seconds']
+        shipment.avg_time_per_call_seconds = update_dict['time_per_call_seconds']
+    elif update_dict.get('status') == 'agreed' and not shipment.avg_time_per_call_seconds:
+        # Fallback: if no time_per_call_seconds provided, use a default for API calls
+        shipment.avg_time_per_call_seconds = 30.0  # Default 30 seconds for API calls
     
     # Update timestamp
     shipment.updated_at = datetime.utcnow()
@@ -511,10 +535,13 @@ async def update_shipment_manual(shipment_id: str, update_data: ShipmentUpdate, 
     # Set assigned_via_url to False for manual frontend updates
     shipment.assigned_via_url = False
     
-    # Add avg_time_per_call_seconds if status is being updated to agreed
-    if update_dict.get('status') == 'agreed' and not shipment.avg_time_per_call_seconds:
-        # Manual calls typically take longer (60-300 seconds)
-        shipment.avg_time_per_call_seconds = 120 + (hash(shipment_id) % 180)
+    # Set avg_time_per_call_seconds from the provided time_per_call_seconds
+    if update_dict.get('time_per_call_seconds') is not None:
+        shipment.time_per_call_seconds = update_dict['time_per_call_seconds']
+        shipment.avg_time_per_call_seconds = update_dict['time_per_call_seconds']
+    elif update_dict.get('status') == 'agreed' and not shipment.avg_time_per_call_seconds:
+        # Fallback: if no time_per_call_seconds provided, use a default for manual calls
+        shipment.avg_time_per_call_seconds = 120.0  # Default 2 minutes for manual calls
     
     # Update timestamp
     shipment.updated_at = datetime.utcnow()

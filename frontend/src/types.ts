@@ -30,6 +30,7 @@ export interface Shipment {
   
   // Assignment tracking fields
   assigned_via_url: boolean;
+  time_per_call_seconds?: number;
   avg_time_per_call_seconds?: number;
 }
 
@@ -71,6 +72,7 @@ export interface ShipmentUpdate {
   status?: 'pending' | 'agreed';
   agreed_price?: number;
   carrier_description?: string;
+  time_per_call_seconds?: number;
 }
 
 export type FilterStatus = 'all' | 'pending' | 'agreed';

@@ -284,6 +284,29 @@ export function LoadForm({
               </div>
 
               <div>
+                <label htmlFor="time_per_call_seconds" className="block text-sm font-medium text-gray-700 mb-1">
+                  Time per Call (seconds)
+                </label>
+                <input
+                  {...register('time_per_call_seconds', { 
+                    min: 0,
+                    valueAsNumber: true
+                  })}
+                  type="number"
+                  step="1"
+                  id="time_per_call_seconds"
+                  className="input"
+                  placeholder="e.g., 120"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Time spent on calls for this load assignment (in seconds)
+                </p>
+                {(errors as any).time_per_call_seconds && (
+                  <p className="mt-1 text-sm text-red-600">{(errors as any).time_per_call_seconds.message}</p>
+                )}
+              </div>
+
+              <div>
                 <label htmlFor="weight" className="block text-sm font-medium text-gray-700 mb-1">
                   <Weight className="inline h-4 w-4 mr-1" />
                   Weight (lbs)
