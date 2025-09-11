@@ -7,6 +7,7 @@ Backend runs on port 8000
 import requests
 import json
 import sys
+import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 import argparse
@@ -15,12 +16,14 @@ import argparse
 class LoadCreator:
     """Class to handle load creation to the backend API"""
     
-    def __init__(self, base_url: str = "http://localhost:8000"):
+    def __init__(self, base_url: str = "http://localhost:8000", api_key: str = None):
         self.base_url = base_url
+        self.api_key = api_key or os.getenv("API_KEY", "happyrobot-api-key-2025")
         self.session = requests.Session()
         self.session.headers.update({
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'X-API-Key': self.api_key
         })
     
     def health_check(self) -> bool:
@@ -229,6 +232,7 @@ def main():
     parser = argparse.ArgumentParser(description="Create loads to HappyRobot backend")
     parser.add_argument("--url", default="http://localhost:8000", 
                        help="Backend URL (default: http://localhost:8000)")
+    parser.add_argument("--api-key", help="API key for authentication (default: from environment or default key)")
     parser.add_argument("--load-id", help="Load ID (e.g., LD-2025-0001)")
     parser.add_argument("--origin", help="Origin location")
     parser.add_argument("--destination", help="Destination location")
@@ -258,7 +262,7 @@ def main():
     args = parser.parse_args()
     
     # Initialize load creator
-    creator = LoadCreator(args.url)
+    creator = LoadCreator(args.url, args.api_key)
     
     # Health check first
     if not creator.health_check():

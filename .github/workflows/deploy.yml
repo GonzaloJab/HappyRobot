@@ -7,7 +7,6 @@ on:
     branches: [main]
 
 env:
-  # AWS Configuration
   AWS_REGION: eu-north-1
   ECR_BACKEND_REPO: shipments-backend
   ECR_FRONTEND_REPO: shipments-frontend
@@ -21,12 +20,20 @@ jobs:
   build-and-push:
     name: Build and Push Images
     runs-on: ubuntu-latest
-    
+    # REQUIRED for OIDC:
+    permissions:
+      id-token: write
+      contents: read
+
+    outputs:
+      backend-image: ${{ steps.build-backend.outputs.backend-image }}
+      frontend-image: ${{ steps.build-frontend.outputs.frontend-image }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::354918374652:role/GITHUB_deploy
@@ -42,12 +49,11 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Build and push backend
           docker build -t $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG ./backend
-          docker build -t $ECR_REGISTRY/$ECR_BACKEND_REPO:latest ./backend
+          docker tag $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG $ECR_REGISTRY/$ECR_BACKEND_REPO:latest
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:latest
-          echo "backend-image=$ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "backend-image=$ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Build, tag, and push frontend image
         id: build-frontend
@@ -55,23 +61,23 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Build and push frontend
           docker build -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG ./frontend
-          docker build -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest ./frontend
+          docker tag $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest
-          echo "frontend-image=$ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "frontend-image=$ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
   deploy:
     name: Deploy to ECS
     needs: build-and-push
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # You can keep static keys here if you want; or switch this to OIDC too.
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -82,23 +88,31 @@ jobs:
       - name: Download task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition ${{ env.TASK_DEF_FAMILY }} \
+            --task-definition "${{ env.TASK_DEF_FAMILY }}" \
             --query taskDefinition > task-definition.json
 
-      - name: Fill in the new image ID in the Amazon ECS task definition
-        id: task-def
+      # Render backend image
+      - name: Render task def (backend)
+        id: render-backend
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: task-definition.json
           container-name: ${{ env.CONTAINER_BACKEND }}
           image: ${{ needs.build-and-push.outputs.backend-image }}
-          container-name-2: ${{ env.CONTAINER_FRONTEND }}
-          image-2: ${{ needs.build-and-push.outputs.frontend-image }}
+
+      # Render frontend image on top of previous render
+      - name: Render task def (frontend)
+        id: render-frontend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-backend.outputs.task-definition }}
+          container-name: ${{ env.CONTAINER_FRONTEND }}
+          image: ${{ needs.build-and-push.outputs.frontend-image }}
 
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
-          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          task-definition: ${{ steps.render-frontend.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE }}
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
@@ -106,7 +120,7 @@ jobs:
       - name: Notify deployment status
         if: always()
         run: |
-          if [ "${{ job.status }}" == "success" ]; then
+          if [ "${{ job.status }}" = "success" ]; then
             echo "✅ Deployment successful!"
             echo "Backend image: ${{ needs.build-and-push.outputs.backend-image }}"
             echo "Frontend image: ${{ needs.build-and-push.outputs.frontend-image }}"

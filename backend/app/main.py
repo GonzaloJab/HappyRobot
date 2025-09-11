@@ -5,7 +5,7 @@ import os
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Depends, Header
 from fastapi.responses import JSONResponse
 
 from .models import Shipment, ShipmentCreate, ShipmentUpdate, ShipmentFilters, StatusType
@@ -22,6 +22,42 @@ logger = logging.getLogger(__name__)
 # engine = create_engine("sqlite:///shipments.db")
 # SQLModel.metadata.create_all(engine)
 shipments_db: Dict[str, Shipment] = {}
+
+# API Key configuration
+API_KEY = os.getenv("API_KEY", "happyrobot-api-key-2025")  # Default key for development
+REQUIRE_API_KEY = os.getenv("REQUIRE_API_KEY", "true").lower() == "true"
+
+def verify_api_key(x_api_key: Optional[str] = Header(None)) -> str:
+    """
+    Verify API key from request headers
+    
+    Args:
+        x_api_key: API key from X-API-Key header
+        
+    Returns:
+        The verified API key
+        
+    Raises:
+        HTTPException: If API key is missing or invalid
+    """
+    if not REQUIRE_API_KEY:
+        return "development-mode"
+    
+    if not x_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key required. Please provide X-API-Key header.",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+    
+    if x_api_key != API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+    
+    return x_api_key
 
 app = FastAPI(
     title="Shipments API",
@@ -181,7 +217,7 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/debug")
-async def debug_info():
+async def debug_info(api_key: str = Depends(verify_api_key)):
     """Debug endpoint to check database state"""
     return {
         "shipments_count": len(shipments_db),
@@ -205,7 +241,8 @@ async def get_shipments(
     delivery_to: Optional[datetime] = None,
     q: Optional[str] = None,
     sort_by: str = "created_at",
-    sort_order: str = "desc"
+    sort_order: str = "desc",
+    api_key: str = Depends(verify_api_key)
 ):
     """
     Get all shipments with optional filtering and sorting
@@ -267,7 +304,7 @@ async def get_shipments(
     return shipments
 
 @app.get("/shipments/{shipment_id}", response_model=Shipment)
-async def get_shipment(shipment_id: str):
+async def get_shipment(shipment_id: str, api_key: str = Depends(verify_api_key)):
     """
     Get a specific shipment by ID
     """
@@ -279,7 +316,7 @@ async def get_shipment(shipment_id: str):
     return shipments_db[shipment_id]
 
 @app.post("/shipments", response_model=Shipment, status_code=status.HTTP_201_CREATED)
-async def create_shipment(shipment_data: ShipmentCreate):
+async def create_shipment(shipment_data: ShipmentCreate, api_key: str = Depends(verify_api_key)):
     """
     Create a new shipment/load
     """
@@ -296,7 +333,7 @@ async def create_shipment(shipment_data: ShipmentCreate):
     return shipment
 
 @app.patch("/shipments/{shipment_id}", response_model=Shipment)
-async def update_shipment(shipment_id: str, update_data: ShipmentUpdate):
+async def update_shipment(shipment_id: str, update_data: ShipmentUpdate, api_key: str = Depends(verify_api_key)):
     """
     Update an existing shipment
     """
@@ -321,7 +358,7 @@ async def update_shipment(shipment_id: str, update_data: ShipmentUpdate):
     return shipment
 
 @app.delete("/shipments/{shipment_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_shipment(shipment_id: str):
+async def delete_shipment(shipment_id: str, api_key: str = Depends(verify_api_key)):
     """
     Delete a shipment
     """
