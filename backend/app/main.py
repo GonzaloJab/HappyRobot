@@ -61,6 +61,35 @@ def verify_api_key(x_api_key: Optional[str] = Header(None)) -> str:
     
     return x_api_key
 
+def resolve_shipment_id(identifier: str) -> str:
+    """
+    Resolve shipment identifier to internal UUID.
+    Accepts both UUID format and human-readable load_id format.
+    
+    Args:
+        identifier: Either UUID or load_id (e.g., "LD-2025-0002")
+        
+    Returns:
+        The internal UUID for the shipment
+        
+    Raises:
+        HTTPException: If shipment not found
+    """
+    # First, try direct UUID lookup
+    if identifier in shipments_db:
+        return identifier
+    
+    # If not found, search by load_id
+    for shipment in shipments_db.values():
+        if shipment.load_id == identifier:
+            return shipment.id
+    
+    # If still not found, raise 404
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Shipment with id '{identifier}' not found"
+    )
+
 app = FastAPI(
     title="Shipments API",
     description="A simple CRUD API for managing shipments",
@@ -444,14 +473,10 @@ async def get_random_shipment(
 @app.get("/shipments/{shipment_id}", response_model=Shipment)
 async def get_shipment(shipment_id: str, api_key: str = Depends(verify_api_key)):
     """
-    Get a specific shipment by ID
+    Get a specific shipment by ID (accepts both UUID and load_id format)
     """
-    if shipment_id not in shipments_db:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Shipment not found"
-        )
-    return shipments_db[shipment_id]
+    resolved_id = resolve_shipment_id(shipment_id)
+    return shipments_db[resolved_id]
 
 @app.post("/shipments", response_model=Shipment, status_code=status.HTTP_201_CREATED)
 async def create_shipment(shipment_data: ShipmentCreate, api_key: str = Depends(verify_api_key)):
@@ -483,14 +508,10 @@ async def create_shipment(shipment_data: ShipmentCreate, api_key: str = Depends(
 async def update_shipment(shipment_id: str, update_data: ShipmentUpdate, api_key: str = Depends(verify_api_key)):
     """
     Update an existing shipment (API-based update - sets assigned_via_url to True)
+    Accepts both UUID and load_id format
     """
-    if shipment_id not in shipments_db:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Shipment with id {shipment_id} not found"
-        )
-    
-    shipment = shipments_db[shipment_id]
+    resolved_id = resolve_shipment_id(shipment_id)
+    shipment = shipments_db[resolved_id]
     
     # Update fields
     update_dict = update_data.model_dump(exclude_unset=True)
@@ -511,22 +532,18 @@ async def update_shipment(shipment_id: str, update_data: ShipmentUpdate, api_key
     # Update timestamp
     shipment.updated_at = datetime.utcnow()
     
-    shipments_db[shipment_id] = shipment
-    logger.info(f"Updated shipment: {shipment_id} (assigned_via_url=True)")
+    shipments_db[resolved_id] = shipment
+    logger.info(f"Updated shipment: {resolved_id} (assigned_via_url=True)")
     return shipment
 
 @app.patch("/shipments/{shipment_id}/manual", response_model=Shipment)
 async def update_shipment_manual(shipment_id: str, update_data: ShipmentUpdate, api_key: str = Depends(verify_api_key)):
     """
     Update an existing shipment via manual frontend assignment (sets assigned_via_url to False)
+    Accepts both UUID and load_id format
     """
-    if shipment_id not in shipments_db:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Shipment with id {shipment_id} not found"
-        )
-    
-    shipment = shipments_db[shipment_id]
+    resolved_id = resolve_shipment_id(shipment_id)
+    shipment = shipments_db[resolved_id]
     
     # Update fields
     update_dict = update_data.model_dump(exclude_unset=True)
@@ -547,23 +564,18 @@ async def update_shipment_manual(shipment_id: str, update_data: ShipmentUpdate, 
     # Update timestamp
     shipment.updated_at = datetime.utcnow()
     
-    shipments_db[shipment_id] = shipment
-    logger.info(f"Updated shipment: {shipment_id} (assigned_via_url=False)")
+    shipments_db[resolved_id] = shipment
+    logger.info(f"Updated shipment: {resolved_id} (assigned_via_url=False)")
     return shipment
 
 @app.delete("/shipments/{shipment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_shipment(shipment_id: str, api_key: str = Depends(verify_api_key)):
     """
-    Delete a shipment
+    Delete a shipment (accepts both UUID and load_id format)
     """
-    if shipment_id not in shipments_db:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Shipment with id {shipment_id} not found"
-        )
-    
-    del shipments_db[shipment_id]
-    logger.info(f"Deleted shipment: {shipment_id}")
+    resolved_id = resolve_shipment_id(shipment_id)
+    del shipments_db[resolved_id]
+    logger.info(f"Deleted shipment: {resolved_id}")
     return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
 
 if __name__ == "__main__":
