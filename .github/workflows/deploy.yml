@@ -13,8 +13,10 @@ env:
   ECS_CLUSTER: arn:aws:ecs:eu-north-1:354918374652:cluster/HappyRobot-ECS
   ECS_SERVICE: arn:aws:ecs:eu-north-1:354918374652:service/HappyRobot-ECS/shipments-taskdef-service-f8gz4zjz
   TASK_DEF_FAMILY: shipments-taskdef
-  TASK_DEF_EXECUTION_ROLE: arn:aws:iam::354918374652:role/ecsTaskExecutionRole
-  
+  # Runtime roles used by the ECS task definition (ECS will assume these, not GitHub)
+  EXECUTION_ROLE_ARN: arn:aws:iam::354918374652:role/ecsTaskExecutionRole
+  TASK_ROLE_ARN: ""   # Optionally set to your app role ARN; leave empty to remove taskRoleArn
+  # Container names in your task def
   CONTAINER_BACKEND: backend
   CONTAINER_FRONTEND: frontend
 
@@ -22,7 +24,6 @@ jobs:
   build-and-push:
     name: Build and Push Images
     runs-on: ubuntu-latest
-    # REQUIRED for OIDC:
     permissions:
       id-token: write
       contents: read
@@ -35,10 +36,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials (OIDC - CI role)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ env.TASK_DEF_EXECUTION_ROLE }}
+          role-to-assume: arn:aws:iam::354918374652:role/GITHUB_deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -51,35 +52,12 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          echo "🚀 Starting backend build..."
-          echo "Building: $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG"
-          
-          # Build with verbose output
+          set -euo pipefail
           docker build --progress=plain -t $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG ./backend
-          
-          echo "✅ Backend build completed"
-          echo "Tagging as latest..."
           docker tag $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG $ECR_REGISTRY/$ECR_BACKEND_REPO:latest
-          
-          echo "📤 Pushing images..."
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:latest
-          
-          echo "✅ Backend push completed"
           echo "backend-image=$ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
-
-      - name: Debug - Frontend Build Environment
-        run: |
-          echo "🔍 Debug: Frontend Build Environment"
-          echo "ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}"
-          echo "ECR_FRONTEND_REPO: ${{ env.ECR_FRONTEND_REPO }}"
-          echo "IMAGE_TAG: ${{ github.sha }}"
-          echo "Frontend directory contents:"
-          ls -la ./frontend/
-          echo "Frontend Dockerfile:"
-          cat ./frontend/Dockerfile || echo "No Dockerfile found"
-          echo "Frontend package.json:"
-          cat ./frontend/package.json || echo "No package.json found"
 
       - name: Build, tag, and push frontend image
         id: build-frontend
@@ -87,28 +65,18 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          echo "🚀 Starting frontend build..."
-          echo "Building: $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG"
-          
-          # Build with verbose output
+          set -euo pipefail
           docker build --progress=plain -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG ./frontend
-          
-          echo "✅ Frontend build completed"
-          echo "Tagging as latest..."
           docker tag $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest
-          
-          echo "📤 Pushing images..."
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest
-          
-          echo "✅ Frontend push completed"
           echo "frontend-image=$ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
   deploy:
     name: Deploy to ECS
-    needs: build-and-push  # Commented out since build-and-push is disabled
+    needs: build-and-push
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    # REQUIRED for OIDC:
     permissions:
       id-token: write
       contents: read
@@ -116,113 +84,55 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      - name: Configure AWS credentials (OIDC)
+
+      - name: Configure AWS credentials (OIDC - CI role)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::354918374652:role/GITHUB_deploy
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Debug - AWS OIDC Authentication
+      - name: Debug - AWS identity
         run: |
-          echo "🔍 Debug: AWS OIDC Authentication"
-          echo "Repository: ${{ github.repository }}"
-          echo "Ref: ${{ github.ref }}"
-          echo "Actor: ${{ github.actor }}"
-          echo "Checking AWS identity..."
+          set -euo pipefail
           aws sts get-caller-identity
-          echo "AWS CLI version:"
-          aws --version
-          echo "✅ OIDC authentication successful!"
-
-      - name: Debug - Deploy Environment
-        run: |
-          echo "🔍 Debug: Deploy Environment"
-          echo "AWS_REGION: ${{ env.AWS_REGION }}"
-          echo "ECS_CLUSTER: ${{ env.ECS_CLUSTER }}"
-          echo "ECS_SERVICE: ${{ env.ECS_SERVICE }}"
-          echo "TASK_DEF_FAMILY: ${{ env.TASK_DEF_FAMILY }}"
-          echo "CONTAINER_BACKEND: ${{ env.CONTAINER_BACKEND }}"
-          echo "CONTAINER_FRONTEND: ${{ env.CONTAINER_FRONTEND }}"
-          echo "Backend image from build: ${{ needs.build-and-push.outputs.backend-image }}"
-          echo "Frontend image from build: ${{ needs.build-and-push.outputs.frontend-image }}"
-
-      # You can keep static keys here if you want; or switch this to OIDC too.
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Debug - AWS Credentials (Deploy)
-        run: |
-          echo "🔍 Debug: AWS Credentials (Deploy)"
-          aws sts get-caller-identity
-          echo "AWS CLI version:"
           aws --version
 
-      - name: Debug - ECS Resources Check
+      - name: ECS resources check
         run: |
-          echo "🔍 Debug: ECS Resources Check"
-          echo "Checking ECS cluster..."
-          aws ecs describe-clusters --clusters "${{ env.ECS_CLUSTER }}" || echo "❌ Cluster not found"
-          echo "Checking ECS service..."
-          aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.ECS_SERVICE }}" || echo "❌ Service not found"
-          echo "Checking task definition..."
-          aws ecs describe-task-definition --task-definition "${{ env.TASK_DEF_FAMILY }}" || echo "❌ Task definition not found"
-          echo "Checking current task definition execution role..."
-          aws ecs describe-task-definition --task-definition "${{ env.TASK_DEF_FAMILY }}" --query 'taskDefinition.executionRoleArn' --output text || echo "❌ Could not get execution role"
+          set -euo pipefail
+          aws ecs describe-clusters --clusters "${{ env.ECS_CLUSTER }}"
+          aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.ECS_SERVICE }}"
+          aws ecs describe-task-definition --task-definition "${{ env.TASK_DEF_FAMILY }}"
 
       - name: Download task definition
         run: |
-          echo "📥 Downloading task definition..."
+          set -euo pipefail
           aws ecs describe-task-definition \
             --task-definition "${{ env.TASK_DEF_FAMILY }}" \
             --query taskDefinition > task-definition.json
-          echo "✅ Task definition downloaded"
-          echo "Task definition contents:"
           cat task-definition.json
 
-      - name: Fix task definition execution role
+      - name: Patch roles in task definition (execution + optional task role)
         run: |
-          echo "🔧 Fixing task definition execution role..."
-          # Update the execution role to use ecsTaskExecutionRole instead of GITHUB_deploy
-          jq --arg role "${{ env.TASK_DEF_EXECUTION_ROLE }}" '.executionRoleArn = $role' task-definition.json > task-definition-fixed.json
-          mv task-definition-fixed.json task-definition.json
-          echo "✅ Task definition execution role fixed"
-          echo "Updated task definition:"
-          cat task-definition.json
-
-      # Render backend image
-      - name: Debug - Backend Render Inputs
-        run: |
-          echo "🔍 Debug: Backend Render Inputs"
-          echo "Container name: ${{ env.CONTAINER_BACKEND }}"
-          echo "Backend image: ${{ needs.build-and-push.outputs.backend-image }}"
-          echo "Task definition file exists:"
-          ls -la task-definition.json
+          set -euo pipefail
+          # Always set executionRoleArn
+          jq --arg exec "${{ env.EXECUTION_ROLE_ARN }}" '.executionRoleArn=$exec' task-definition.json > td1.json
+          # If TASK_ROLE_ARN provided, set it; if empty, delete taskRoleArn
+          if [ -n "${{ env.TASK_ROLE_ARN }}" ]; then
+            jq --arg tr "${{ env.TASK_ROLE_ARN }}" '.taskRoleArn=$tr' td1.json > task-definition.patched.json
+          else
+            jq 'del(.taskRoleArn)' td1.json > task-definition.patched.json
+          fi
+          echo "Patched:"
+          jq '. | {family, revision, executionRoleArn, taskRoleArn}' task-definition.patched.json
 
       - name: Render task def (backend)
         id: render-backend
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: task-definition.json
+          task-definition: task-definition.patched.json
           container-name: ${{ env.CONTAINER_BACKEND }}
           image: ${{ needs.build-and-push.outputs.backend-image }}
-
-      - name: Debug - Backend Render Output
-        run: |
-          echo "🔍 Debug: Backend Render Output"
-          echo "Rendered task definition:"
-          echo "${{ steps.render-backend.outputs.task-definition }}"
-
-      # Render frontend image on top of previous render
-      - name: Debug - Frontend Render Inputs
-        run: |
-          echo "🔍 Debug: Frontend Render Inputs"
-          echo "Container name: ${{ env.CONTAINER_FRONTEND }}"
-          echo "Frontend image: ${{ needs.build-and-push.outputs.frontend-image }}"
 
       - name: Render task def (frontend)
         id: render-frontend
@@ -232,21 +142,20 @@ jobs:
           container-name: ${{ env.CONTAINER_FRONTEND }}
           image: ${{ needs.build-and-push.outputs.frontend-image }}
 
-      - name: Debug - Final Task Definition
+      - name: Validate roles in final task definition
         run: |
-          echo "🔍 Debug: Final Task Definition"
-          echo "Final rendered task definition:"
-          echo "${{ steps.render-frontend.outputs.task-definition }}"
-
-      - name: Debug - Pre-Deployment Check
-        run: |
-          echo "🔍 Debug: Pre-Deployment Check"
-          echo "About to deploy with:"
-          echo "  Task definition: ${{ steps.render-frontend.outputs.task-definition }}"
-          echo "  Service: ${{ env.ECS_SERVICE }}"
-          echo "  Cluster: ${{ env.ECS_CLUSTER }}"
-          echo "Current service status:"
-          aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.ECS_SERVICE }}" --query 'services[0].{status:status,runningCount:runningCount,pendingCount:pendingCount,desiredCount:desiredCount}'
+          set -euo pipefail
+          FINAL="${{ steps.render-frontend.outputs.task-definition }}"
+          jq '. | {family, revision, executionRoleArn, taskRoleArn}' "$FINAL"
+          execRole=$(jq -r '.executionRoleArn' "$FINAL")
+          taskRole=$(jq -r '.taskRoleArn // empty' "$FINAL")
+          if echo "$execRole" | grep -q 'GITHUB_deploy'; then
+            echo "❌ executionRoleArn still points to GITHUB_deploy"; exit 1
+          fi
+          if echo "$taskRole" | grep -q 'GITHUB_deploy'; then
+            echo "❌ taskRoleArn still points to GITHUB_deploy"; exit 1
+          fi
+          echo "✅ Roles look good"
 
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
@@ -256,21 +165,8 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
 
-      - name: Debug - Post-Deployment Check
+      - name: Post-deployment check
         run: |
-          echo "🔍 Debug: Post-Deployment Check"
-          echo "Deployment completed. Checking service status..."
-          aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.ECS_SERVICE }}" --query 'services[0].{status:status,runningCount:runningCount,pendingCount:pendingCount,desiredCount:desiredCount,deployments:deployments[0].{status:status,createdAt:createdAt}}'
-          echo "Recent task events:"
-          aws ecs list-tasks --cluster "${{ env.ECS_CLUSTER }}" --service-name "${{ env.ECS_SERVICE }}" --query 'taskArns[0]' --output text | xargs -I {} aws ecs describe-tasks --cluster "${{ env.ECS_CLUSTER }}" --tasks {} --query 'tasks[0].{lastStatus:lastStatus,desiredStatus:desiredStatus,healthStatus:healthStatus}' || echo "No tasks found"
-
-      - name: Notify deployment status
-        if: always()
-        run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            echo "✅ Deployment completed successfully!"
-            echo "Service is running with the new task definition"
-          else
-            echo "❌ Deployment failed!"
-            echo "Check the logs above for details"
-          fi
+          set -euo pipefail
+          aws ecs describe-services --cluster "${{ env.ECS_CLUSTER }}" --services "${{ env.ECS_SERVICE }}" \
+            --query 'services[0].{status:status,runningCount:runningCount,pendingCount:pendingCount,desiredCount:desiredCount}'
