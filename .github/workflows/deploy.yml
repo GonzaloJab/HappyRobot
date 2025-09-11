@@ -36,8 +36,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::354918374652:role/ecsTaskExecutionRole
-          #arn:aws:iam::354918374652:role/GITHUB_deploy
+          role-to-assume: arn:aws:iam::354918374652:role/GITHUB_deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -111,6 +110,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::354918374652:role/ecsTaskExecutionRole
+          #arn:aws:iam::354918374652:role/GITHUB_deploy
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Debug - Deploy Environment
         run: |
