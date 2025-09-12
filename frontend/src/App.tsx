@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Plus, Loader2, Package } from 'lucide-react';
-import { Shipment, FilterStatus, SortField, SortDirection, ShipmentFilters } from './types';
+import { Shipment, FilterStatus, SortField, SortDirection, ShipmentFilters, PhoneCallCreate } from './types';
 import { useShipments, useCreateShipment, useUpdateShipmentManual, useDeleteShipment, useShipmentStats } from './hooks/useShipments';
+import { api } from './api';
 import { LoadFiltersBar } from './components/LoadFiltersBar';
 import { LoadStatsBar } from './components/LoadStatsBar';
 import { HeadlineStatsBar } from './components/HeadlineStatsBar';
@@ -64,6 +65,16 @@ function App() {
       await deleteShipment.mutateAsync(id);
     } catch (error) {
       console.error('Failed to delete load:', error);
+    }
+  };
+
+  const handleAddPhoneCall = async (shipmentId: string, phoneCall: PhoneCallCreate) => {
+    try {
+      await api.addPhoneCall(shipmentId, phoneCall);
+      // Refresh the shipments data to show the new phone call
+      window.location.reload(); // Simple refresh for now
+    } catch (error) {
+      console.error('Failed to add phone call:', error);
     }
   };
 
@@ -173,6 +184,7 @@ function App() {
                   shipment={shipment}
                   onEdit={handleAssignManually}
                   onDelete={handleDelete}
+                  onAddPhoneCall={handleAddPhoneCall}
                 />
               ))}
             </div>
@@ -193,6 +205,7 @@ function App() {
         isOpen={!!editingShipment}
         onClose={() => setEditingShipment(null)}
         onSubmit={handleUpdateShipment}
+        onAddPhoneCall={handleAddPhoneCall}
         isLoading={updateShipmentManual.isPending}
         initialData={editingShipment || undefined}
         title="Edit Load"

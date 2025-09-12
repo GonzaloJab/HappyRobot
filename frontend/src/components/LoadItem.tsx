@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Shipment } from '../types';
+import { Shipment, PhoneCallCreate } from '../types';
 import { format } from 'date-fns';
 import { 
   MapPin, 
@@ -11,17 +11,29 @@ import {
   Weight, 
   Ruler,
   Truck,
-  Clock
+  Clock,
+  Phone,
+  X
 } from 'lucide-react';
 
 interface LoadItemProps {
   shipment: Shipment;
   onEdit: (shipment: Shipment) => void;
   onDelete: (id: string) => void;
+  onAddPhoneCall?: (shipmentId: string, phoneCall: PhoneCallCreate) => void;
 }
 
-export function LoadItem({ shipment, onEdit, onDelete }: LoadItemProps) {
+export function LoadItem({ shipment, onEdit, onDelete, onAddPhoneCall }: LoadItemProps) {
   const [showMenu, setShowMenu] = useState(false);
+  const [showPhoneCallForm, setShowPhoneCallForm] = useState(false);
+  const [phoneCallData, setPhoneCallData] = useState<PhoneCallCreate>({
+    agreed: false,
+    minutes: 0,
+    call_type: 'manual',
+    sentiment: 'neutral',
+    notes: '',
+    call_id: ''
+  });
 
   const handleAssignManually = () => {
     onEdit(shipment);
@@ -31,6 +43,21 @@ export function LoadItem({ shipment, onEdit, onDelete }: LoadItemProps) {
   const handleDelete = () => {
     onDelete(shipment.id);
     setShowMenu(false);
+  };
+
+  const handleAddPhoneCall = () => {
+    if (onAddPhoneCall) {
+      onAddPhoneCall(shipment.id, phoneCallData);
+      setPhoneCallData({
+        agreed: false,
+        minutes: 0,
+        call_type: 'manual',
+        sentiment: 'neutral',
+        notes: '',
+        call_id: ''
+      });
+      setShowPhoneCallForm(false);
+    }
   };
 
   const formatCurrency = (amount?: number) => {
@@ -148,6 +175,29 @@ export function LoadItem({ shipment, onEdit, onDelete }: LoadItemProps) {
               <span>Created: {format(new Date(shipment.created_at), 'MMM dd')}</span>
             </div>
 
+            {/* Phone Call Stats */}
+            {shipment.phone_calls && shipment.phone_calls.length > 0 && (
+              <div className="mt-2">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center space-x-1 text-gray-600">
+                    <Phone className="h-3 w-3" />
+                    <span>Phone Calls:</span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <span className="text-gray-500">
+                      {shipment.phone_calls.length} total
+                    </span>
+                    <span className="text-green-600">
+                      {shipment.phone_calls.filter(call => call.agreed).length} agreed
+                    </span>
+                    <span className="text-blue-600">
+                      {shipment.phone_calls.reduce((total, call) => total + call.minutes, 0).toFixed(1)}m
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Notes (only if present) */}
             {shipment.notes && (
               <div className="mt-2">
@@ -187,6 +237,18 @@ export function LoadItem({ shipment, onEdit, onDelete }: LoadItemProps) {
                     <Edit className="h-4 w-4 mr-2" />
                     Assign Manually
                   </button>
+                  {onAddPhoneCall && (
+                    <button
+                      onClick={() => {
+                        setShowPhoneCallForm(true);
+                        setShowMenu(false);
+                      }}
+                      className="flex items-center w-full px-4 py-2 text-sm text-blue-600 hover:bg-blue-50"
+                    >
+                      <Phone className="h-4 w-4 mr-2" />
+                      Add Phone Call
+                    </button>
+                  )}
                   <button
                     onClick={handleDelete}
                     className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
@@ -200,6 +262,136 @@ export function LoadItem({ shipment, onEdit, onDelete }: LoadItemProps) {
           )}
         </div>
       </div>
+
+      {/* Phone Call Form Modal */}
+      {showPhoneCallForm && (
+        <>
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-30"
+            onClick={() => setShowPhoneCallForm(false)}
+          />
+          <div className="fixed inset-0 flex items-center justify-center z-40 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                    <Phone className="h-5 w-5 mr-2" />
+                    Add Phone Call
+                  </h3>
+                  <button
+                    onClick={() => setShowPhoneCallForm(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Call Duration (minutes)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={phoneCallData.minutes}
+                        onChange={(e) => setPhoneCallData({...phoneCallData, minutes: parseFloat(e.target.value) || 0})}
+                        className="input"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Call ID
+                      </label>
+                      <input
+                        type="text"
+                        value={phoneCallData.call_id}
+                        onChange={(e) => setPhoneCallData({...phoneCallData, call_id: e.target.value})}
+                        className="input"
+                        placeholder="Optional"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Call Type
+                      </label>
+                      <select
+                        value={phoneCallData.call_type}
+                        onChange={(e) => setPhoneCallData({...phoneCallData, call_type: e.target.value as 'manual' | 'agent'})}
+                        className="input"
+                      >
+                        <option value="manual">Manual</option>
+                        <option value="agent">Agent</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Sentiment
+                      </label>
+                      <select
+                        value={phoneCallData.sentiment}
+                        onChange={(e) => setPhoneCallData({...phoneCallData, sentiment: e.target.value as 'positive' | 'neutral' | 'negative'})}
+                        className="input"
+                      >
+                        <option value="positive">Positive</option>
+                        <option value="neutral">Neutral</option>
+                        <option value="negative">Negative</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Notes
+                    </label>
+                    <textarea
+                      value={phoneCallData.notes}
+                      onChange={(e) => setPhoneCallData({...phoneCallData, notes: e.target.value})}
+                      className="input"
+                      rows={3}
+                      placeholder="Call notes..."
+                    />
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="agreed"
+                      checked={phoneCallData.agreed}
+                      onChange={(e) => setPhoneCallData({...phoneCallData, agreed: e.target.checked})}
+                      className="mr-2"
+                    />
+                    <label htmlFor="agreed" className="text-sm text-gray-700">
+                      Call resulted in agreement
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-3 mt-6">
+                  <button
+                    onClick={() => setShowPhoneCallForm(false)}
+                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddPhoneCall}
+                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                  >
+                    Add Call
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
