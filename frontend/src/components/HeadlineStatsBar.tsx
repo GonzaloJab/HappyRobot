@@ -1,5 +1,5 @@
 import { ShipmentStats } from '../types';
-import { Clock, Package, TrendingUp } from 'lucide-react';
+import { Package, TrendingUp, Clock } from 'lucide-react';
 
 interface HeadlineStatsBarProps {
   stats: ShipmentStats;
@@ -7,22 +7,14 @@ interface HeadlineStatsBarProps {
 }
 
 export function HeadlineStatsBar({ stats, isLoading }: HeadlineStatsBarProps) {
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
 
-  const formatTime = (seconds: number) => {
-    if (seconds < 60) {
-      return `${seconds.toFixed(1)}s`;
-    } else if (seconds < 3600) {
-      return `${(seconds / 60).toFixed(1)}m`;
+  const formatMinutes = (minutes: number) => {
+    if (minutes < 60) {
+      return `${minutes.toFixed(1)}m`;
     } else {
-      return `${(seconds / 3600).toFixed(1)}h`;
+      const hours = Math.floor(minutes / 60);
+      const remainingMinutes = minutes % 60;
+      return `${hours}h ${remainingMinutes.toFixed(0)}m`;
     }
   };
 
@@ -56,6 +48,7 @@ export function HeadlineStatsBar({ stats, isLoading }: HeadlineStatsBarProps) {
       title: 'Manual (Frontend)',
       subtitle: 'Assignments made through the web UI',
       stats: manualStats,
+      phoneStats: manualStats.phone_calls.manual, // Show manual call stats for manual assignments
       color: 'blue',
       icon: Package,
     },
@@ -63,6 +56,7 @@ export function HeadlineStatsBar({ stats, isLoading }: HeadlineStatsBarProps) {
       title: 'URL/API (Agent)',
       subtitle: 'Assignments made via automated agents or integrations',
       stats: urlApiStats,
+      phoneStats: urlApiStats.phone_calls.agent, // Show agent call stats for URL/API assignments
       color: 'green',
       icon: TrendingUp,
     },
@@ -111,38 +105,41 @@ export function HeadlineStatsBar({ stats, isLoading }: HeadlineStatsBarProps) {
                 </div>
               </div>
 
-              {/* Average Time per Call - Prominent */}
+              {/* Total Minutes Spent - Prominent */}
               <div className="mb-4">
                 <div className="flex items-baseline">
                   <Clock className={`h-5 w-5 ${colors.metric} mr-2`} />
                   <span className={`text-3xl font-bold ${colors.value}`}>
-                    {formatTime(card.stats.avg_time_per_call_seconds)}
+                    {formatMinutes(card.phoneStats.total_minutes)}
                   </span>
                 </div>
                 <p className={`text-sm ${colors.metric} font-medium`}>
-                  Average Time per Call
+                  Total Minutes Spent
                 </p>
               </div>
 
-              {/* Other metrics - Smaller */}
+              {/* Phone Call metrics - Smaller */}
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <div className={`text-lg font-semibold ${colors.value}`}>
-                    {card.stats.count}
+                    {card.phoneStats.total_calls}
                   </div>
-                  <p className="text-xs text-gray-600">Assigned Loads</p>
+                  <p className="text-xs text-gray-600">Total Calls</p>
                 </div>
                 <div>
                   <div className={`text-lg font-semibold ${colors.value}`}>
-                    {formatCurrency(card.stats.total_agreed_price)}
+                    {card.phoneStats.agreed_calls}
                   </div>
-                  <p className="text-xs text-gray-600">Total Agreed Price</p>
+                  <p className="text-xs text-gray-600">Successful Calls</p>
                 </div>
                 <div>
                   <div className={`text-lg font-semibold ${colors.value}`}>
-                    {formatCurrency(card.stats.total_agreed_minus_loadboard)}
+                    {card.phoneStats.total_calls > 0 
+                      ? `${((card.phoneStats.agreed_calls / card.phoneStats.total_calls) * 100).toFixed(1)}%`
+                      : '0%'
+                    }
                   </div>
-                  <p className="text-xs text-gray-600">Price Difference</p>
+                  <p className="text-xs text-gray-600">Success Rate</p>
                 </div>
               </div>
             </div>

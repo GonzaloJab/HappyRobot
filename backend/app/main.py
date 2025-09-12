@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 from fastapi import FastAPI, HTTPException, status, Depends, Header
 from fastapi.responses import JSONResponse
 
-from .models import Shipment, ShipmentCreate, ShipmentUpdate, ShipmentFilters, StatusType
+from .models import Shipment, ShipmentCreate, ShipmentUpdate, ShipmentFilters, StatusType, PhoneCall, PhoneCallCreate
 from .deps import setup_cors, get_port
 
 # Configure logging
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # engine = create_engine("sqlite:///shipments.db")
 # SQLModel.metadata.create_all(engine)
 shipments_db: Dict[str, Shipment] = {}
+phone_calls_db: Dict[str, PhoneCall] = {}
 
 # API Key configuration
 API_KEY = os.getenv("API_KEY", "happyrobot-api-key-2025")  # Default key for development
@@ -431,11 +432,46 @@ async def get_shipments_stats(
         
         avg_time_per_call = total_time_seconds / valid_time_count if valid_time_count > 0 else 0
         
+        # Calculate phone call statistics split by call type (manual vs agent)
+        manual_phone_calls = 0
+        manual_agreed_calls = 0
+        manual_total_minutes = 0.0
+        
+        agent_phone_calls = 0
+        agent_agreed_calls = 0
+        agent_total_minutes = 0.0
+        
+        for s in shipment_list:  # Count phone calls for all shipments, not just assigned ones
+            if s.phone_calls:
+                for call in s.phone_calls:
+                    if call.call_type == "manual":
+                        manual_phone_calls += 1
+                        manual_total_minutes += call.minutes
+                        if call.agreed:
+                            manual_agreed_calls += 1
+                    elif call.call_type == "agent":
+                        agent_phone_calls += 1
+                        agent_total_minutes += call.minutes
+                        if call.agreed:
+                            agent_agreed_calls += 1
+        
         return {
             "count": count,
             "total_agreed_price": total_agreed_price,
             "total_agreed_minus_loadboard": total_agreed_minus_loadboard,
-            "avg_time_per_call_seconds": avg_time_per_call
+            "avg_time_per_call_seconds": avg_time_per_call,
+            "phone_calls": {
+                "manual": {
+                    "total_calls": manual_phone_calls,
+                    "agreed_calls": manual_agreed_calls,
+                    "total_minutes": round(manual_total_minutes, 1)
+                },
+                "agent": {
+                    "total_calls": agent_phone_calls,
+                    "agreed_calls": agent_agreed_calls,
+                    "total_minutes": round(agent_total_minutes, 1)
+                }
+            }
         }
     
     return {
@@ -577,6 +613,96 @@ async def delete_shipment(shipment_id: str, api_key: str = Depends(verify_api_ke
     del shipments_db[resolved_id]
     logger.info(f"Deleted shipment: {resolved_id}")
     return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
+
+# Phone Call Endpoints
+@app.post("/shipments/{shipment_id}/phone-calls", response_model=PhoneCall, status_code=status.HTTP_201_CREATED)
+async def add_phone_call(
+    shipment_id: str, 
+    phone_call_data: PhoneCallCreate,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Add a phone call to a shipment
+    """
+    resolved_id = resolve_shipment_id(shipment_id)
+    
+    if resolved_id not in shipments_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Shipment not found: {shipment_id}"
+        )
+    
+    # Create the phone call
+    phone_call = PhoneCall(
+        shipment_id=resolved_id,
+        **phone_call_data.model_dump()
+    )
+    
+    # Store in phone calls database
+    phone_calls_db[phone_call.id] = phone_call
+    
+    # Add to shipment's phone calls list
+    shipment = shipments_db[resolved_id]
+    if shipment.phone_calls is None:
+        shipment.phone_calls = []
+    shipment.phone_calls.append(phone_call)
+    
+    # Update shipment's updated_at timestamp
+    shipment.updated_at = datetime.utcnow()
+    
+    logger.info(f"Added phone call {phone_call.id} to shipment {resolved_id}")
+    return phone_call
+
+@app.delete("/shipments/{shipment_id}/phone-calls", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_all_phone_calls(
+    shipment_id: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Delete all phone calls for a shipment
+    """
+    resolved_id = resolve_shipment_id(shipment_id)
+    
+    if resolved_id not in shipments_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Shipment not found: {shipment_id}"
+        )
+    
+    shipment = shipments_db[resolved_id]
+    
+    if shipment.phone_calls:
+        # Remove phone calls from phone_calls_db
+        for phone_call in shipment.phone_calls:
+            if phone_call.id in phone_calls_db:
+                del phone_calls_db[phone_call.id]
+        
+        # Clear phone calls from shipment
+        shipment.phone_calls = []
+        shipment.updated_at = datetime.utcnow()
+        
+        logger.info(f"Deleted all phone calls for shipment {resolved_id}")
+    
+    return JSONResponse(status_code=status.HTTP_204_NO_CONTENT, content=None)
+
+@app.get("/shipments/{shipment_id}/phone-calls", response_model=List[PhoneCall])
+async def get_phone_calls(
+    shipment_id: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get all phone calls for a shipment
+    """
+    resolved_id = resolve_shipment_id(shipment_id)
+    
+    if resolved_id not in shipments_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Shipment not found: {shipment_id}"
+        )
+    
+    shipment = shipments_db[resolved_id]
+    return shipment.phone_calls or []
 
 if __name__ == "__main__":
     import uvicorn

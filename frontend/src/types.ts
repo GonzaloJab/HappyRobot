@@ -32,6 +32,9 @@ export interface Shipment {
   assigned_via_url: boolean;
   time_per_call_seconds?: number;
   avg_time_per_call_seconds?: number;
+  
+  // Phone call tracking
+  phone_calls?: PhoneCall[];
 }
 
 export interface ShipmentCreate {
@@ -95,11 +98,48 @@ export interface ShipmentFilters {
   sort_order?: SortDirection;
 }
 
+// Phone Call Types
+export type CallType = 'manual' | 'agent';
+export type SentimentType = 'positive' | 'neutral' | 'negative';
+
+export interface PhoneCall {
+  id: string;
+  shipment_id: string;
+  agreed: boolean;
+  minutes: number;
+  call_type: CallType;
+  call_id?: string;
+  sentiment: SentimentType;
+  notes?: string;
+  created_at: string;
+}
+
+export interface PhoneCallCreate {
+  agreed: boolean;
+  minutes: number;
+  call_type: CallType;
+  call_id?: string;
+  sentiment: SentimentType;
+  notes?: string;
+}
+
+export interface PhoneCallTypeStats {
+  total_calls: number;
+  agreed_calls: number;
+  total_minutes: number;
+}
+
+export interface PhoneCallStats {
+  manual: PhoneCallTypeStats;
+  agent: PhoneCallTypeStats;
+}
+
 export interface AssignmentStats {
   count: number;
   total_agreed_price: number;
   total_agreed_minus_loadboard: number;
   avg_time_per_call_seconds: number;
+  phone_calls: PhoneCallStats;
 }
 
 export interface ShipmentStats {

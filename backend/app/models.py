@@ -2,12 +2,16 @@
 Pydantic models for Shipments/Loads API
 """
 from datetime import datetime
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from pydantic import BaseModel, Field, field_validator
 import uuid
 
 # Status enum for type safety
 StatusType = Literal["pending", "agreed"]
+
+# Phone call enums
+CallType = Literal["manual", "agent"]
+SentimentType = Literal["positive", "neutral", "negative"]
 
 class ShipmentBase(BaseModel):
     """Base shipment/load model with common fields"""
@@ -38,6 +42,9 @@ class ShipmentBase(BaseModel):
     assigned_via_url: Optional[bool] = Field(False, description="True if assigned via URL/API, False if assigned manually in frontend")
     time_per_call_seconds: Optional[float] = Field(None, ge=0, description="Actual time per call in seconds (manually input)")
     avg_time_per_call_seconds: Optional[float] = Field(None, ge=0, description="Average time per call in seconds (calculated from time_per_call_seconds)")
+    
+    # Phone call tracking
+    phone_calls: Optional[List['PhoneCall']] = Field(default_factory=list, description="List of phone calls made for this load")
     
     # Status field
     status: Optional[StatusType] = Field(default="pending", description="Load status")
@@ -146,3 +153,46 @@ class ShipmentFilters(BaseModel):
     assigned_via_url: Optional[bool] = Field(None, description="Filter by assignment source: true for URL/API, false for manual")
     sort_by: Optional[str] = Field("created_at", description="Sort field")
     sort_order: Optional[Literal["asc", "desc"]] = Field("desc", description="Sort order")
+
+# Phone Call Models
+class PhoneCallBase(BaseModel):
+    """Base phone call model"""
+    agreed: bool = Field(..., description="Whether the call resulted in an agreement")
+    minutes: float = Field(..., ge=0, description="Duration of the call in minutes")
+    call_type: CallType = Field(..., description="Type of call: manual or agent")
+    call_id: Optional[str] = Field(None, max_length=50, description="ID of the call")
+    sentiment: SentimentType = Field(..., description="Sentiment of the caller")
+    notes: Optional[str] = Field(None, max_length=500, description="Additional notes about the call")
+
+class PhoneCallCreate(PhoneCallBase):
+    """Model for creating new phone calls"""
+    pass
+
+class PhoneCall(PhoneCallBase):
+    """Complete phone call model with all fields"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Internal UUID")
+    shipment_id: str = Field(..., description="ID of the shipment this call belongs to")
+    created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "id": "123e4567-e89b-12d3-a456-426614174000",
+                    "shipment_id": "456e7890-e89b-12d3-a456-426614174001",
+                    "agreed": True,
+                    "minutes": 15.5,
+                    "call_type": "manual",
+                    "sentiment": "positive",
+                    "notes": "Carrier was very interested and agreed to the rate",
+                    "created_at": "2025-01-01T00:00:00Z"
+                }
+            ]
+        }
+    }
+
+# Update forward references
+ShipmentBase.model_rebuild()
+PhoneCallBase.model_rebuild()
+PhoneCallCreate.model_rebuild()
+PhoneCall.model_rebuild()

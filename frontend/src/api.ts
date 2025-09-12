@@ -1,4 +1,4 @@
-import { Shipment, ShipmentCreate, ShipmentUpdate, ShipmentFilters, ShipmentStats } from './types';
+import { Shipment, ShipmentCreate, ShipmentUpdate, ShipmentFilters, ShipmentStats, PhoneCall, PhoneCallCreate } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const API_KEY = import.meta.env.VITE_API_KEY || 'HapRob-OTVHhErcXLu2eKkUMP6lDtrd8UNi61KZo4FvGALqem0NoJO1uWlz7OywCN0BNoNaG2x5Y';
@@ -87,4 +87,22 @@ export const api = {
     const endpoint = queryString ? `/shipments/stats?${queryString}` : '/shipments/stats';
     return fetchApi<ShipmentStats>(endpoint);
   },
+
+  // Phone Call methods
+  // Add a phone call to a shipment
+  addPhoneCall: (shipmentId: string, data: PhoneCallCreate): Promise<PhoneCall> =>
+    fetchApi<PhoneCall>(`/shipments/${shipmentId}/phone-calls`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // Get all phone calls for a shipment
+  getPhoneCalls: (shipmentId: string): Promise<PhoneCall[]> =>
+    fetchApi<PhoneCall[]>(`/shipments/${shipmentId}/phone-calls`),
+
+  // Delete all phone calls for a shipment
+  deleteAllPhoneCalls: (shipmentId: string): Promise<void> =>
+    fetchApi<void>(`/shipments/${shipmentId}/phone-calls`, {
+      method: 'DELETE',
+    }),
 };
