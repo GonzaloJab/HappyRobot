@@ -48,7 +48,7 @@ export function HeadlineStatsBar({ stats, isLoading }: HeadlineStatsBarProps) {
       title: 'Manual (Frontend)',
       subtitle: 'Assignments made through the web UI',
       stats: manualStats,
-      phoneStats: manualStats.phone_calls.manual, // Show manual call stats for manual assignments
+      phoneStats: manualStats.phone_calls.manual, // Show manual call stats
       color: 'blue',
       icon: Package,
     },
@@ -56,7 +56,7 @@ export function HeadlineStatsBar({ stats, isLoading }: HeadlineStatsBarProps) {
       title: 'URL/API (Agent)',
       subtitle: 'Assignments made via automated agents or integrations',
       stats: urlApiStats,
-      phoneStats: urlApiStats.phone_calls.agent, // Show agent call stats for URL/API assignments
+      phoneStats: urlApiStats.phone_calls.agent, // Show agent call stats
       color: 'green',
       icon: TrendingUp,
     },

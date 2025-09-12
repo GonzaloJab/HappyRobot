@@ -10,7 +10,6 @@ import random
 import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
-import uuid
 
 class ShipmentsAPITester:
     def __init__(self, base_url: str, api_key: str):
@@ -312,25 +311,6 @@ class ShipmentsAPITester:
         print(f"ADDING PHONE CALL TO LOAD: {load_id}")
         print("="*50)
         
-        # First, find the load to get its internal ID
-        loads = self.list_loads()
-        target_load = None
-        
-        for load in loads:
-            if load.get('load_id') == load_id:
-                target_load = load
-                break
-        
-        if not target_load:
-            print(f"❌ Load with load_id '{load_id}' not found")
-            return {"status": "error", "message": "Load not found"}
-        
-        # Use the internal ID for the API call
-        internal_id = target_load.get('id')
-        if not internal_id:
-            print("❌ Could not find internal ID for the load")
-            return {"status": "error", "message": "Internal ID not found"}
-        
         # Generate random phone call data if not provided
         if agreed is None:
             agreed = random.choice([True, False])
@@ -356,7 +336,8 @@ class ShipmentsAPITester:
         
         print(f"Phone call data: {json.dumps(phone_call_data, indent=2)}")
         
-        result = self.make_request('POST', f'/shipments/{internal_id}/phone-calls', phone_call_data)
+        # Use load_id directly - backend will resolve it to internal ID
+        result = self.make_request('POST', f'/shipments/{load_id}/phone-calls', phone_call_data)
         
         if result.get('status') == 'error':
             print(f"❌ Error adding phone call: {result.get('message')}")
@@ -376,26 +357,8 @@ class ShipmentsAPITester:
         print(f"GETTING PHONE CALLS FOR LOAD: {load_id}")
         print("="*50)
         
-        # First, find the load to get its internal ID
-        loads = self.list_loads()
-        target_load = None
-        
-        for load in loads:
-            if load.get('load_id') == load_id:
-                target_load = load
-                break
-        
-        if not target_load:
-            print(f"❌ Load with load_id '{load_id}' not found")
-            return []
-        
-        # Use the internal ID for the API call
-        internal_id = target_load.get('id')
-        if not internal_id:
-            print("❌ Could not find internal ID for the load")
-            return []
-        
-        result = self.make_request('GET', f'/shipments/{internal_id}/phone-calls')
+        # Use load_id directly - backend will resolve it to internal ID
+        result = self.make_request('GET', f'/shipments/{load_id}/phone-calls')
         
         if isinstance(result, list):
             print(f"✅ Found {len(result)} phone calls")
@@ -418,26 +381,8 @@ class ShipmentsAPITester:
         print(f"DELETING ALL PHONE CALLS FOR LOAD: {load_id}")
         print("="*50)
         
-        # First, find the load to get its internal ID
-        loads = self.list_loads()
-        target_load = None
-        
-        for load in loads:
-            if load.get('load_id') == load_id:
-                target_load = load
-                break
-        
-        if not target_load:
-            print(f"❌ Load with load_id '{load_id}' not found")
-            return {"status": "error", "message": "Load not found"}
-        
-        # Use the internal ID for the API call
-        internal_id = target_load.get('id')
-        if not internal_id:
-            print("❌ Could not find internal ID for the load")
-            return {"status": "error", "message": "Internal ID not found"}
-        
-        result = self.make_request('DELETE', f'/shipments/{internal_id}/phone-calls')
+        # Use load_id directly - backend will resolve it to internal ID
+        result = self.make_request('DELETE', f'/shipments/{load_id}/phone-calls')
         
         if result.get('status') == 'error':
             print(f"❌ Error deleting phone calls: {result.get('message')}")
@@ -445,6 +390,139 @@ class ShipmentsAPITester:
             print(f"✅ All phone calls deleted successfully!")
         
         return result
+    
+    def list_all_phone_calls(self) -> List[Dict]:
+        """List all phone calls across all loads"""
+        print("\n" + "="*50)
+        print("LISTING ALL PHONE CALLS")
+        print("="*50)
+        
+        # Get all loads first
+        loads = self.list_loads()
+        
+        all_phone_calls = []
+        total_calls = 0
+        manual_calls = 0
+        agent_calls = 0
+        agreed_calls = 0
+        total_minutes = 0.0
+        
+        for load in loads:
+            load_id = load.get('load_id')
+            if load_id:
+                # Get phone calls for this load using load_id
+                result = self.make_request('GET', f'/shipments/{load_id}/phone-calls')
+                
+                if isinstance(result, list):
+                    for call in result:
+                        call_info = {
+                            'load_id': load.get('load_id', 'N/A'),
+                            'call_id': call.get('call_id', 'N/A'),
+                            'agreed': call.get('agreed', False),
+                            'minutes': call.get('minutes', 0),
+                            'call_type': call.get('call_type', 'N/A'),
+                            'sentiment': call.get('sentiment', 'N/A'),
+                            'notes': call.get('notes', 'N/A'),
+                            'created_at': call.get('created_at', 'N/A')
+                        }
+                        all_phone_calls.append(call_info)
+                        
+                        # Update counters
+                        total_calls += 1
+                        if call.get('call_type') == 'manual':
+                            manual_calls += 1
+                        elif call.get('call_type') == 'agent':
+                            agent_calls += 1
+                        if call.get('agreed'):
+                            agreed_calls += 1
+                        total_minutes += call.get('minutes', 0)
+        
+        print(f"✅ Found {total_calls} phone calls across all loads")
+        print(f"   Manual calls: {manual_calls}")
+        print(f"   Agent calls: {agent_calls}")
+        print(f"   Agreed calls: {agreed_calls}")
+        print(f"   Total minutes: {total_minutes:.1f}")
+        
+        if all_phone_calls:
+            print(f"\n📞 Phone Call Details:")
+            for i, call in enumerate(all_phone_calls, 1):
+                print(f"\n{i}. Load: {call['load_id']}")
+                print(f"   Call ID: {call['call_id']}")
+                print(f"   Type: {call['call_type']}")
+                print(f"   Agreed: {'Yes' if call['agreed'] else 'No'}")
+                print(f"   Duration: {call['minutes']} minutes")
+                print(f"   Sentiment: {call['sentiment']}")
+                print(f"   Notes: {call['notes']}")
+                print(f"   Created: {call['created_at']}")
+        else:
+            print("   No phone calls found")
+        
+        return all_phone_calls
+    
+    def list_phone_calls_by_type(self, call_type: str) -> List[Dict]:
+        """List all phone calls filtered by type (manual or agent)"""
+        print("\n" + "="*50)
+        print(f"LISTING {call_type.upper()} PHONE CALLS")
+        print("="*50)
+        
+        if call_type not in ["manual", "agent"]:
+            print(f"❌ Invalid call type: {call_type}. Must be 'manual' or 'agent'")
+            return []
+        
+        # Get all loads first
+        loads = self.list_loads()
+        
+        filtered_phone_calls = []
+        total_calls = 0
+        agreed_calls = 0
+        total_minutes = 0.0
+        
+        for load in loads:
+            load_id = load.get('load_id')
+            if load_id:
+                # Get phone calls for this load using load_id
+                result = self.make_request('GET', f'/shipments/{load_id}/phone-calls')
+                
+                if isinstance(result, list):
+                    for call in result:
+                        if call.get('call_type') == call_type:
+                            call_info = {
+                                'load_id': load.get('load_id', 'N/A'),
+                                'call_id': call.get('call_id', 'N/A'),
+                                'agreed': call.get('agreed', False),
+                                'minutes': call.get('minutes', 0),
+                                'call_type': call.get('call_type', 'N/A'),
+                                'sentiment': call.get('sentiment', 'N/A'),
+                                'notes': call.get('notes', 'N/A'),
+                                'created_at': call.get('created_at', 'N/A')
+                            }
+                            filtered_phone_calls.append(call_info)
+                            
+                            # Update counters
+                            total_calls += 1
+                            if call.get('agreed'):
+                                agreed_calls += 1
+                            total_minutes += call.get('minutes', 0)
+        
+        print(f"✅ Found {total_calls} {call_type} phone calls")
+        print(f"   Agreed calls: {agreed_calls}")
+        print(f"   Success rate: {(agreed_calls/total_calls*100):.1f}%" if total_calls > 0 else "   Success rate: 0%")
+        print(f"   Total minutes: {total_minutes:.1f}")
+        
+        if filtered_phone_calls:
+            print(f"\n📞 {call_type.title()} Phone Call Details:")
+            for i, call in enumerate(filtered_phone_calls, 1):
+                print(f"\n{i}. Load: {call['load_id']}")
+                print(f"   Call ID: {call['call_id']}")
+                print(f"   Agreed: {'Yes' if call['agreed'] else 'No'}")
+                print(f"   Duration: {call['minutes']} minutes")
+                print(f"   Sentiment: {call['sentiment']}")
+                print(f"   Notes: {call['notes']}")
+                print(f"   Created: {call['created_at']}")
+        else:
+            print(f"   No {call_type} phone calls found")
+        
+        return filtered_phone_calls
     
     def run_comprehensive_test(self):
         """Run a comprehensive test suite"""
@@ -573,9 +651,12 @@ def main():
         print("11. Add Phone Call")
         print("12. Get Phone Calls for Load")
         print("13. Delete All Phone Calls for Load")
+        print("14. List All Phone Calls")
+        print("15. List Manual Phone Calls")
+        print("16. List Agent Phone Calls")
         print("0. Exit")
         
-        choice = input("\nEnter your choice (0-13): ").strip()
+        choice = input("\nEnter your choice (0-16): ").strip()
         
         if choice == '0':
             print("👋 Goodbye!")
@@ -657,6 +738,12 @@ def main():
                 tester.delete_all_phone_calls(load_id)
             else:
                 print("❌ Operation cancelled")
+        elif choice == '14':
+            tester.list_all_phone_calls()
+        elif choice == '15':
+            tester.list_phone_calls_by_type('manual')
+        elif choice == '16':
+            tester.list_phone_calls_by_type('agent')
         else:
             print("❌ Invalid choice. Please try again.")
         

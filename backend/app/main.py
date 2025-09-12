@@ -474,9 +474,59 @@ async def get_shipments_stats(
             }
         }
     
+    # Calculate combined phone call stats for all shipments
+    all_shipments = shipments  # Use the filtered shipments list
+    
+    # Calculate phone call statistics split by call type (manual vs agent)
+    manual_phone_calls = 0
+    manual_agreed_calls = 0
+    manual_total_minutes = 0.0
+    
+    agent_phone_calls = 0
+    agent_agreed_calls = 0
+    agent_total_minutes = 0.0
+    
+    for s in all_shipments:  # Count phone calls for all shipments
+        if s.phone_calls:
+            for call in s.phone_calls:
+                if call.call_type == "manual":
+                    manual_phone_calls += 1
+                    manual_total_minutes += call.minutes
+                    if call.agreed:
+                        manual_agreed_calls += 1
+                elif call.call_type == "agent":
+                    agent_phone_calls += 1
+                    agent_total_minutes += call.minutes
+                    if call.agreed:
+                        agent_agreed_calls += 1
+    
+    # Create combined phone call stats
+    combined_phone_stats = {
+        "manual": {
+            "total_calls": manual_phone_calls,
+            "agreed_calls": manual_agreed_calls,
+            "total_minutes": round(manual_total_minutes, 1)
+        },
+        "agent": {
+            "total_calls": agent_phone_calls,
+            "agreed_calls": agent_agreed_calls,
+            "total_minutes": round(agent_total_minutes, 1)
+        }
+    }
+    
+    # Get assignment-based stats
+    manual_assignment_stats = calculate_stats(manual_shipments)
+    url_api_assignment_stats = calculate_stats(url_api_shipments)
+    
     return {
-        "manual": calculate_stats(manual_shipments),
-        "url_api": calculate_stats(url_api_shipments)
+        "manual": {
+            **manual_assignment_stats,
+            "phone_calls": combined_phone_stats
+        },
+        "url_api": {
+            **url_api_assignment_stats,
+            "phone_calls": combined_phone_stats
+        }
     }
 
 @app.get("/shipments/random", response_model=Shipment)
