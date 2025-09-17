@@ -36,7 +36,7 @@ export function LoadForm({
   const [showPhoneCallForm, setShowPhoneCallForm] = useState(false);
   const [phoneCallData, setPhoneCallData] = useState<PhoneCallCreate>({
     agreed: false,
-    minutes: 0,
+    seconds: 0,
     call_type: 'manual',
     sentiment: 'neutral',
     notes: '',
@@ -64,7 +64,7 @@ export function LoadForm({
       onAddPhoneCall(initialData.id as string, phoneCallData);
       setPhoneCallData({
         agreed: false,
-        minutes: 0,
+        seconds: 0,
         call_type: 'manual',
         sentiment: 'neutral',
         notes: '',
@@ -79,7 +79,7 @@ export function LoadForm({
     setShowPhoneCallForm(false);
     setPhoneCallData({
       agreed: false,
-      minutes: 0,
+      seconds: 0,
       call_type: 'manual',
       sentiment: 'neutral',
       notes: '',
@@ -365,14 +365,14 @@ export function LoadForm({
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Call Duration (minutes)
+                            Call Duration (seconds)
                           </label>
                           <input
                             type="number"
-                            step="0.1"
+                            step="1"
                             min="0"
-                            value={phoneCallData.minutes}
-                            onChange={(e) => setPhoneCallData({...phoneCallData, minutes: parseFloat(e.target.value) || 0})}
+                            value={phoneCallData.seconds}
+                            onChange={(e) => setPhoneCallData({...phoneCallData, seconds: parseFloat(e.target.value) || 0})}
                             className="input text-sm"
                             placeholder="0"
                           />

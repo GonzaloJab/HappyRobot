@@ -110,7 +110,7 @@ export function HeadlineStatsBar({ stats, isLoading }: HeadlineStatsBarProps) {
                 <div className="flex items-baseline">
                   <Clock className={`h-5 w-5 ${colors.metric} mr-2`} />
                   <span className={`text-3xl font-bold ${colors.value}`}>
-                    {formatMinutes(card.phoneStats.total_minutes)}
+                    {formatMinutes(card.phoneStats.total_seconds / 60)}
                   </span>
                 </div>
                 <p className={`text-sm ${colors.metric} font-medium`}>

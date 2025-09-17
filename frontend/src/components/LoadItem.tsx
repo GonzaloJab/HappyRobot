@@ -28,7 +28,7 @@ export function LoadItem({ shipment, onEdit, onDelete, onAddPhoneCall }: LoadIte
   const [showPhoneCallForm, setShowPhoneCallForm] = useState(false);
   const [phoneCallData, setPhoneCallData] = useState<PhoneCallCreate>({
     agreed: false,
-    minutes: 0,
+    seconds: 0,
     call_type: 'manual',
     sentiment: 'neutral',
     notes: '',
@@ -50,7 +50,7 @@ export function LoadItem({ shipment, onEdit, onDelete, onAddPhoneCall }: LoadIte
       onAddPhoneCall(shipment.id, phoneCallData);
       setPhoneCallData({
         agreed: false,
-        minutes: 0,
+        seconds: 0,
         call_type: 'manual',
         sentiment: 'neutral',
         notes: '',
@@ -191,7 +191,7 @@ export function LoadItem({ shipment, onEdit, onDelete, onAddPhoneCall }: LoadIte
                       {shipment.phone_calls.filter(call => call.agreed).length} agreed
                     </span>
                     <span className="text-blue-600">
-                      {shipment.phone_calls.reduce((total, call) => total + call.minutes, 0).toFixed(1)}m
+                      {(shipment.phone_calls.reduce((total, call) => total + call.seconds, 0) / 60).toFixed(1)}m
                     </span>
                   </div>
                 </div>
@@ -290,14 +290,14 @@ export function LoadItem({ shipment, onEdit, onDelete, onAddPhoneCall }: LoadIte
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Call Duration (minutes)
+                        Call Duration (seconds)
                       </label>
                       <input
                         type="number"
-                        step="0.1"
+                        step="1"
                         min="0"
-                        value={phoneCallData.minutes}
-                        onChange={(e) => setPhoneCallData({...phoneCallData, minutes: parseFloat(e.target.value) || 0})}
+                        value={phoneCallData.seconds}
+                        onChange={(e) => setPhoneCallData({...phoneCallData, seconds: parseFloat(e.target.value) || 0})}
                         className="input"
                         placeholder="0"
                       />
