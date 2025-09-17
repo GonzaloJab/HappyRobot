@@ -435,23 +435,23 @@ async def get_shipments_stats(
         # Calculate phone call statistics split by call type (manual vs agent)
         manual_phone_calls = 0
         manual_agreed_calls = 0
-        manual_total_minutes = 0.0
+        manual_total_seconds = 0.0
         
         agent_phone_calls = 0
         agent_agreed_calls = 0
-        agent_total_minutes = 0.0
+        agent_total_seconds = 0.0
         
         for s in shipment_list:  # Count phone calls for all shipments, not just assigned ones
             if s.phone_calls:
                 for call in s.phone_calls:
                     if call.call_type == "manual":
                         manual_phone_calls += 1
-                        manual_total_minutes += call.minutes
+                        manual_total_seconds += call.seconds
                         if call.agreed:
                             manual_agreed_calls += 1
                     elif call.call_type == "agent":
                         agent_phone_calls += 1
-                        agent_total_minutes += call.minutes
+                        agent_total_seconds += call.seconds
                         if call.agreed:
                             agent_agreed_calls += 1
         
@@ -464,12 +464,12 @@ async def get_shipments_stats(
                 "manual": {
                     "total_calls": manual_phone_calls,
                     "agreed_calls": manual_agreed_calls,
-                    "total_minutes": round(manual_total_minutes, 1)
+                    "total_seconds": round(manual_total_seconds, 1)
                 },
                 "agent": {
                     "total_calls": agent_phone_calls,
                     "agreed_calls": agent_agreed_calls,
-                    "total_minutes": round(agent_total_minutes, 1)
+                    "total_seconds": round(agent_total_seconds, 1)
                 }
             }
         }
@@ -480,23 +480,23 @@ async def get_shipments_stats(
     # Calculate phone call statistics split by call type (manual vs agent)
     manual_phone_calls = 0
     manual_agreed_calls = 0
-    manual_total_minutes = 0.0
+    manual_total_seconds = 0.0
     
     agent_phone_calls = 0
     agent_agreed_calls = 0
-    agent_total_minutes = 0.0
+    agent_total_seconds = 0.0
     
     for s in all_shipments:  # Count phone calls for all shipments
         if s.phone_calls:
             for call in s.phone_calls:
                 if call.call_type == "manual":
                     manual_phone_calls += 1
-                    manual_total_minutes += call.minutes
+                    manual_total_seconds += call.seconds
                     if call.agreed:
                         manual_agreed_calls += 1
                 elif call.call_type == "agent":
                     agent_phone_calls += 1
-                    agent_total_minutes += call.minutes
+                    agent_total_seconds += call.seconds
                     if call.agreed:
                         agent_agreed_calls += 1
     
@@ -505,12 +505,12 @@ async def get_shipments_stats(
         "manual": {
             "total_calls": manual_phone_calls,
             "agreed_calls": manual_agreed_calls,
-            "total_minutes": round(manual_total_minutes, 1)
+            "total_seconds": round(manual_total_seconds, 1)
         },
         "agent": {
             "total_calls": agent_phone_calls,
             "agreed_calls": agent_agreed_calls,
-            "total_minutes": round(agent_total_minutes, 1)
+            "total_seconds": round(agent_total_seconds, 1)
         }
     }
     

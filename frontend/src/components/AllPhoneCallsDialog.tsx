@@ -180,7 +180,7 @@ export function AllPhoneCallsDialog({ isOpen, onClose }: AllPhoneCallsDialogProp
                         </div>
                         <div className="flex items-center space-x-1">
                           <Clock className="h-4 w-4" />
-                          <span>{call.minutes} minutes</span>
+                          <span>{Math.round(call.seconds / 60 * 10) / 10} minutes</span>
                         </div>
                         <div>
                           <span className="font-medium">Date:</span> {formatDate(call.created_at)}

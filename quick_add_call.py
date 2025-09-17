@@ -21,7 +21,7 @@ print(f"Adding call to: {shipment['load_id']}")
 # Add phone call with string fields
 call_data = {
     "agreed": "True",  # String boolean
-    "minutes": "12.5",  # String number
+    "seconds": "750",  # String number (12.5 minutes = 750 seconds)
     "call_type": "agent",
     "sentiment": "positive",
     "notes": "Quick test call with string fields",
@@ -34,6 +34,7 @@ if result.status_code == 201:
     call = result.json()
     print(f"✅ Success! Call ID: {call['id']}")
     print(f"   Parsed agreed: {call['agreed']} (type: {type(call['agreed']).__name__})")
-    print(f"   Parsed minutes: {call['minutes']} (type: {type(call['minutes']).__name__})")
+    print(f"   Parsed seconds: {call['seconds']} (type: {type(call['seconds']).__name__})")
+    print(f"   Duration: {call['seconds']} seconds ({call['seconds']/60:.1f} minutes)")
 else:
     print(f"❌ Failed: {result.status_code} - {result.text}")

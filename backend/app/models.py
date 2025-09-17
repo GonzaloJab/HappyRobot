@@ -158,7 +158,7 @@ class ShipmentFilters(BaseModel):
 class PhoneCallBase(BaseModel):
     """Base phone call model"""
     agreed: bool = Field(..., description="Whether the call resulted in an agreement")
-    minutes: float = Field(..., ge=0, description="Duration of the call in minutes")
+    seconds: float = Field(..., ge=0, description="Duration of the call in seconds")
     call_type: CallType = Field(..., description="Type of call: manual or agent")
     call_id: Optional[str] = Field(None, max_length=50, description="ID of the call")
     sentiment: SentimentType = Field(..., description="Sentiment of the caller")
@@ -167,7 +167,7 @@ class PhoneCallBase(BaseModel):
 class PhoneCallCreate(BaseModel):
     """Model for creating new phone calls with flexible input types"""
     agreed: bool = Field(..., description="Whether the call resulted in an agreement")
-    minutes: float = Field(..., ge=0, description="Duration of the call in minutes")
+    seconds: float = Field(..., ge=0, description="Duration of the call in seconds")
     call_type: CallType = Field(..., description="Type of call: manual or agent")
     call_id: Optional[str] = Field(None, max_length=50, description="ID of the call")
     sentiment: SentimentType = Field(..., description="Sentiment of the caller")
@@ -189,18 +189,18 @@ class PhoneCallCreate(BaseModel):
                 raise ValueError(f"Invalid boolean value: '{v}'. Expected 'true'/'false', '1'/'0', 'yes'/'no', or 'y'/'n'")
         raise ValueError(f"Invalid type for 'agreed': {type(v)}. Expected bool or str")
     
-    @field_validator('minutes', mode='before')
+    @field_validator('seconds', mode='before')
     @classmethod
-    def parse_minutes(cls, v):
-        """Parse minutes field from string or number"""
+    def parse_seconds(cls, v):
+        """Parse seconds field from string or number"""
         if isinstance(v, (int, float)):
             return float(v)
         if isinstance(v, str):
             try:
                 return float(v.strip())
             except ValueError:
-                raise ValueError(f"Invalid number format for 'minutes': '{v}'. Expected a valid number")
-        raise ValueError(f"Invalid type for 'minutes': {type(v)}. Expected number or str")
+                raise ValueError(f"Invalid number format for 'seconds': '{v}'. Expected a valid number")
+        raise ValueError(f"Invalid type for 'seconds': {type(v)}. Expected number or str")
 
 class PhoneCall(PhoneCallBase):
     """Complete phone call model with all fields"""
@@ -220,7 +220,7 @@ class PhoneCall(PhoneCallBase):
                     "id": "123e4567-e89b-12d3-a456-426614174000",
                     "shipment_id": "456e7890-e89b-12d3-a456-426614174001",
                     "agreed": True,
-                    "minutes": 15.5,
+                    "seconds": 930.0,
                     "call_type": "manual",
                     "sentiment": "positive",
                     "notes": "Carrier was very interested and agreed to the rate",

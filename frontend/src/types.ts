@@ -106,7 +106,7 @@ export interface PhoneCall {
   id: string;
   shipment_id: string;
   agreed: boolean;
-  minutes: number;
+  seconds: number;
   call_type: CallType;
   call_id?: string;
   sentiment: SentimentType;
@@ -120,7 +120,7 @@ export interface PhoneCall {
 
 export interface PhoneCallCreate {
   agreed: boolean;
-  minutes: number;
+  seconds: number;
   call_type: CallType;
   call_id?: string;
   sentiment: SentimentType;
@@ -130,7 +130,7 @@ export interface PhoneCallCreate {
 export interface PhoneCallTypeStats {
   total_calls: number;
   agreed_calls: number;
-  total_minutes: number;
+  total_seconds: number;
 }
 
 export interface PhoneCallStats {
