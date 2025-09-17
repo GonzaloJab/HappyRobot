@@ -9,7 +9,7 @@ import random
 
 # Configuration
 BASE_URL = "http://happyrobot-1700442240.eu-north-1.elb.amazonaws.com"
-BASE_URL = "http://localhost:8000"
+# BASE_URL = "http://localhost:8000"
 API_KEY = "HapRob-OTVHhErcXLu2eKkUMP6lDtrd8UNi61KZo4FvGALqem0NoJO1uWlz7OywCN0BNoNaG2x5Y"
 
 headers = {'Content-Type': 'application/json', 'X-API-Key': API_KEY}
