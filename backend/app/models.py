@@ -164,15 +164,54 @@ class PhoneCallBase(BaseModel):
     sentiment: SentimentType = Field(..., description="Sentiment of the caller")
     notes: Optional[str] = Field(None, max_length=500, description="Additional notes about the call")
 
-class PhoneCallCreate(PhoneCallBase):
-    """Model for creating new phone calls"""
-    pass
+class PhoneCallCreate(BaseModel):
+    """Model for creating new phone calls with flexible input types"""
+    agreed: bool = Field(..., description="Whether the call resulted in an agreement")
+    minutes: float = Field(..., ge=0, description="Duration of the call in minutes")
+    call_type: CallType = Field(..., description="Type of call: manual or agent")
+    call_id: Optional[str] = Field(None, max_length=50, description="ID of the call")
+    sentiment: SentimentType = Field(..., description="Sentiment of the caller")
+    notes: Optional[str] = Field(None, max_length=500, description="Additional notes about the call")
+    
+    @field_validator('agreed', mode='before')
+    @classmethod
+    def parse_agreed(cls, v):
+        """Parse agreed field from string or boolean"""
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            v_lower = v.lower().strip()
+            if v_lower in ('true', '1', 'yes', 'y'):
+                return True
+            elif v_lower in ('false', '0', 'no', 'n'):
+                return False
+            else:
+                raise ValueError(f"Invalid boolean value: '{v}'. Expected 'true'/'false', '1'/'0', 'yes'/'no', or 'y'/'n'")
+        raise ValueError(f"Invalid type for 'agreed': {type(v)}. Expected bool or str")
+    
+    @field_validator('minutes', mode='before')
+    @classmethod
+    def parse_minutes(cls, v):
+        """Parse minutes field from string or number"""
+        if isinstance(v, (int, float)):
+            return float(v)
+        if isinstance(v, str):
+            try:
+                return float(v.strip())
+            except ValueError:
+                raise ValueError(f"Invalid number format for 'minutes': '{v}'. Expected a valid number")
+        raise ValueError(f"Invalid type for 'minutes': {type(v)}. Expected number or str")
 
 class PhoneCall(PhoneCallBase):
     """Complete phone call model with all fields"""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Internal UUID")
     shipment_id: str = Field(..., description="ID of the shipment this call belongs to")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
+    
+    # Optional shipment context fields (added when returning all calls)
+    shipment_load_id: Optional[str] = Field(None, description="Load ID of the shipment")
+    shipment_origin: Optional[str] = Field(None, description="Origin of the shipment")
+    shipment_destination: Optional[str] = Field(None, description="Destination of the shipment")
 
     model_config = {
         "json_schema_extra": {

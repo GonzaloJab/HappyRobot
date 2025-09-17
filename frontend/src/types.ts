@@ -112,6 +112,10 @@ export interface PhoneCall {
   sentiment: SentimentType;
   notes?: string;
   created_at: string;
+  // Optional shipment context fields (added when returning all calls)
+  shipment_load_id?: string;
+  shipment_origin?: string;
+  shipment_destination?: string;
 }
 
 export interface PhoneCallCreate {

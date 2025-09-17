@@ -754,6 +754,44 @@ async def get_phone_calls(
     shipment = shipments_db[resolved_id]
     return shipment.phone_calls or []
 
+@app.get("/phone-calls", response_model=List[PhoneCall])
+async def get_all_phone_calls(
+    call_type: Optional[str] = None,
+    agreed: Optional[bool] = None,
+    sentiment: Optional[str] = None,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get all phone calls across all shipments with optional filtering
+    """
+    all_phone_calls = []
+    
+    # Collect all phone calls from all shipments
+    for shipment in shipments_db.values():
+        if shipment.phone_calls:
+            for call in shipment.phone_calls:
+                # Add shipment info to the call for context
+                call_with_shipment = call.model_copy()
+                call_with_shipment.shipment_load_id = shipment.load_id
+                call_with_shipment.shipment_origin = shipment.origin
+                call_with_shipment.shipment_destination = shipment.destination
+                all_phone_calls.append(call_with_shipment)
+    
+    # Apply filters
+    if call_type:
+        all_phone_calls = [call for call in all_phone_calls if call.call_type == call_type]
+    
+    if agreed is not None:
+        all_phone_calls = [call for call in all_phone_calls if call.agreed == agreed]
+    
+    if sentiment:
+        all_phone_calls = [call for call in all_phone_calls if call.sentiment == sentiment]
+    
+    # Sort by creation date (newest first)
+    all_phone_calls.sort(key=lambda x: x.created_at, reverse=True)
+    
+    return all_phone_calls
+
 if __name__ == "__main__":
     import uvicorn
     port = get_port()

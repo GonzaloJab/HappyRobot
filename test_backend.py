@@ -351,6 +351,74 @@ class ShipmentsAPITester:
         
         return result
     
+    def add_phone_call_with_strings(self, load_id: str) -> Dict:
+        """Add a phone call to a load using string inputs to test parsing"""
+        print("\n" + "="*50)
+        print(f"ADDING PHONE CALL WITH STRING INPUTS TO LOAD: {load_id}")
+        print("="*50)
+        
+        # Test different string formats
+        test_cases = [
+            {
+                "name": "String boolean 'True' and string number",
+                "data": {
+                    "agreed": "True",
+                    "minutes": "15.5",
+                    "call_type": "agent",
+                    "sentiment": "positive",
+                    "notes": "Test call with string 'True' and '15.5'"
+                }
+            },
+            {
+                "name": "String boolean 'False' and string integer",
+                "data": {
+                    "agreed": "False",
+                    "minutes": "8",
+                    "call_type": "manual",
+                    "sentiment": "neutral",
+                    "notes": "Test call with string 'False' and '8'"
+                }
+            },
+            {
+                "name": "Alternative boolean strings 'yes'/'no'",
+                "data": {
+                    "agreed": "yes",
+                    "minutes": "12.25",
+                    "call_type": "agent",
+                    "sentiment": "positive",
+                    "notes": "Test call with 'yes' boolean"
+                }
+            },
+            {
+                "name": "Numeric boolean '1'/'0'",
+                "data": {
+                    "agreed": "1",
+                    "minutes": "20.0",
+                    "call_type": "manual",
+                    "sentiment": "negative",
+                    "notes": "Test call with '1' boolean"
+                }
+            }
+        ]
+        
+        results = []
+        for i, test_case in enumerate(test_cases, 1):
+            print(f"\n{i}. Testing: {test_case['name']}")
+            print(f"   Input data: {json.dumps(test_case['data'], indent=2)}")
+            
+            result = self.make_request('POST', f'/shipments/{load_id}/phone-calls', test_case['data'])
+            
+            if isinstance(result, dict) and 'id' in result:
+                print(f"   ✅ Success! Created phone call ID: {result['id']}")
+                print(f"   📊 Parsed values:")
+                print(f"      - agreed: {result['agreed']} (type: {type(result['agreed']).__name__})")
+                print(f"      - minutes: {result['minutes']} (type: {type(result['minutes']).__name__})")
+                results.append(result)
+            else:
+                print(f"   ❌ Failed: {result}")
+        
+        return results
+    
     def get_phone_calls(self, load_id: str) -> List[Dict]:
         """Get all phone calls for a load"""
         print("\n" + "="*50)
@@ -654,9 +722,10 @@ def main():
         print("14. List All Phone Calls")
         print("15. List Manual Phone Calls")
         print("16. List Agent Phone Calls")
+        print("17. Test Phone Call with String Inputs")
         print("0. Exit")
         
-        choice = input("\nEnter your choice (0-16): ").strip()
+        choice = input("\nEnter your choice (0-17): ").strip()
         
         if choice == '0':
             print("👋 Goodbye!")
@@ -727,6 +796,14 @@ def main():
             sentiment = sentiment if sentiment in ['positive', 'neutral', 'negative'] else None
             notes = input("Notes (press Enter for auto-generated): ").strip()
             notes = notes if notes else None
+            #Print the data types
+            print(f"Data type of agreed: {type(agreed)}")
+            print(f"Data type of minutes: {type(minutes)}")
+            print(f"Data type of call_type: {type(call_type)}")
+            print(f"Data type of sentiment: {type(sentiment)}")
+            print(f"Data type of notes: {type(notes)}")
+            print(f"Data type of call_id: {type(call_id)}")
+            print(f"Data type of load_id: {type(load_id)}")
             tester.add_phone_call(load_id, agreed, minutes, call_type, sentiment, notes, call_id)
         elif choice == '12':
             load_id = input("Enter load_id to get phone calls for: ").strip()
@@ -744,6 +821,9 @@ def main():
             tester.list_phone_calls_by_type('manual')
         elif choice == '16':
             tester.list_phone_calls_by_type('agent')
+        elif choice == '17':
+            load_id = input("Enter load_id to test string inputs with: ").strip()
+            tester.add_phone_call_with_strings(load_id)
         else:
             print("❌ Invalid choice. Please try again.")
         

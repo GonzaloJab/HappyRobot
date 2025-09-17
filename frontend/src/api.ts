@@ -105,4 +105,17 @@ export const api = {
     fetchApi<void>(`/shipments/${shipmentId}/phone-calls`, {
       method: 'DELETE',
     }),
+
+  // Get all phone calls across all shipments
+  getAllPhoneCalls: (filters: { call_type?: string; agreed?: boolean; sentiment?: string } = {}): Promise<PhoneCall[]> => {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, value.toString());
+      }
+    });
+    const queryString = params.toString();
+    const endpoint = queryString ? `/phone-calls?${queryString}` : '/phone-calls';
+    return fetchApi<PhoneCall[]>(endpoint);
+  },
 };

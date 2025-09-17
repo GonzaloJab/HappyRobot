@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Loader2, Package } from 'lucide-react';
+import { Plus, Loader2, Package, Phone } from 'lucide-react';
 import { Shipment, FilterStatus, SortField, SortDirection, ShipmentFilters, PhoneCallCreate } from './types';
 import { useShipments, useCreateShipment, useUpdateShipmentManual, useDeleteShipment, useShipmentStats } from './hooks/useShipments';
 import { api } from './api';
@@ -9,6 +9,7 @@ import { HeadlineStatsBar } from './components/HeadlineStatsBar';
 import { LoadItem } from './components/LoadItem';
 import { LoadForm } from './components/LoadForm';
 import { DeleteConfirmDialog } from './components/DeleteConfirmDialog';
+import { AllPhoneCallsDialog } from './components/AllPhoneCallsDialog';
 
 function App() {
   // State for filters and sorting
@@ -23,6 +24,7 @@ function App() {
   const [isNewFormOpen, setIsNewFormOpen] = useState(false);
   const [editingShipment, setEditingShipment] = useState<Shipment | null>(null);
   const [deletingShipment, setDeletingShipment] = useState<Shipment | null>(null);
+  const [isAllPhoneCallsOpen, setIsAllPhoneCallsOpen] = useState(false);
 
   // Build filters object
   const filters: ShipmentFilters = {
@@ -121,19 +123,35 @@ function App() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Loads Manager</h1>
-              <p className="mt-1 text-sm text-gray-600">
-                Manage your loads and track their status
-              </p>
+            <div className="flex items-center space-x-4">
+              <img 
+                src="/logo.svg" 
+                alt="Becker Logistics" 
+                className="h-20 w-auto"
+              />
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Loads Manager</h1>
+                <p className="mt-1 text-sm text-gray-600">
+                  Manage your loads and track their status
+                </p>
+              </div>
             </div>
-            <button
-              onClick={() => setIsNewFormOpen(true)}
-              className="btn btn-primary flex items-center space-x-2"
-            >
-              <Plus className="h-4 w-4" />
-              <span>New Load</span>
-            </button>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setIsAllPhoneCallsOpen(true)}
+                className="btn btn-secondary flex items-center space-x-2"
+              >
+                <Phone className="h-4 w-4" />
+                <span>All Calls</span>
+              </button>
+              <button
+                onClick={() => setIsNewFormOpen(true)}
+                className="btn btn-primary flex items-center space-x-2"
+              >
+                <Plus className="h-4 w-4" />
+                <span>New Load</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -217,6 +235,11 @@ function App() {
         onClose={() => setDeletingShipment(null)}
         onConfirm={confirmDelete}
         isLoading={deleteShipment.isPending}
+      />
+
+      <AllPhoneCallsDialog
+        isOpen={isAllPhoneCallsOpen}
+        onClose={() => setIsAllPhoneCallsOpen(false)}
       />
     </div>
   );
