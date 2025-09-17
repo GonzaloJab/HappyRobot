@@ -27,7 +27,7 @@ export function LoadItem({ shipment, onEdit, onDelete, onAddPhoneCall }: LoadIte
   const [showMenu, setShowMenu] = useState(false);
   const [showPhoneCallForm, setShowPhoneCallForm] = useState(false);
   const [phoneCallData, setPhoneCallData] = useState<PhoneCallCreate>({
-    agreed: false,
+    agreed: true,  // Always true for phone calls added to existing loads
     seconds: 0,
     call_type: 'manual',
     sentiment: 'neutral',
@@ -47,9 +47,14 @@ export function LoadItem({ shipment, onEdit, onDelete, onAddPhoneCall }: LoadIte
 
   const handleAddPhoneCall = () => {
     if (onAddPhoneCall) {
-      onAddPhoneCall(shipment.id, phoneCallData);
+      // Automatically set agreed to true for phone calls added via LoadItem
+      const phoneCallWithAgreed = {
+        ...phoneCallData,
+        agreed: true
+      };
+      onAddPhoneCall(shipment.id, phoneCallWithAgreed);
       setPhoneCallData({
-        agreed: false,
+        agreed: true,
         seconds: 0,
         call_type: 'manual',
         sentiment: 'neutral',
@@ -359,18 +364,6 @@ export function LoadItem({ shipment, onEdit, onDelete, onAddPhoneCall }: LoadIte
                     />
                   </div>
 
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="agreed"
-                      checked={phoneCallData.agreed}
-                      onChange={(e) => setPhoneCallData({...phoneCallData, agreed: e.target.checked})}
-                      className="mr-2"
-                    />
-                    <label htmlFor="agreed" className="text-sm text-gray-700">
-                      Call resulted in agreement
-                    </label>
-                  </div>
                 </div>
 
                 <div className="flex justify-end space-x-3 mt-6">

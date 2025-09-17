@@ -1,13 +1,12 @@
 import { useForm } from 'react-hook-form';
 import { ShipmentCreate, ShipmentUpdate, PhoneCallCreate } from '../types';
-import { X, Calendar, MapPin, Package, DollarSign, Weight, Ruler, Phone, Plus } from 'lucide-react';
+import { X, Calendar, MapPin, Package, DollarSign, Weight, Ruler, Phone } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface LoadFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: ShipmentCreate | ShipmentUpdate) => void;
-  onAddPhoneCall?: (shipmentId: string, phoneCall: PhoneCallCreate) => void;
+  onSubmit: (data: ShipmentCreate | ShipmentUpdate, phoneCall?: PhoneCallCreate) => void;
   isLoading?: boolean;
   initialData?: Partial<ShipmentCreate>;
   title?: string;
@@ -17,7 +16,6 @@ export function LoadForm({
   isOpen, 
   onClose, 
   onSubmit, 
-  onAddPhoneCall,
   isLoading, 
   initialData,
   title = "Create New Load"
@@ -33,9 +31,8 @@ export function LoadForm({
     defaultValues: initialData
   });
 
-  const [showPhoneCallForm, setShowPhoneCallForm] = useState(false);
   const [phoneCallData, setPhoneCallData] = useState<PhoneCallCreate>({
-    agreed: false,
+    agreed: true,  // Always true when phone call fields are shown (status = 'agreed')
     seconds: 0,
     call_type: 'manual',
     sentiment: 'neutral',
@@ -44,41 +41,61 @@ export function LoadForm({
   });
 
   const pickupDatetime = watch('pickup_datetime');
-  const status = watch('status');
+  const status = watch('status' as any);
 
   // Reset form when initialData changes
   useEffect(() => {
     if (initialData) {
-      reset(initialData);
+      // Format dates for datetime-local input (YYYY-MM-DDTHH:MM)
+      const formattedData = {
+        ...initialData,
+        pickup_datetime: initialData.pickup_datetime 
+          ? new Date(initialData.pickup_datetime).toISOString().slice(0, 16)
+          : initialData.pickup_datetime,
+        delivery_datetime: initialData.delivery_datetime 
+          ? new Date(initialData.delivery_datetime).toISOString().slice(0, 16)
+          : initialData.delivery_datetime,
+      };
+      reset(formattedData);
     }
   }, [initialData, reset]);
 
   const handleFormSubmit = (data: ShipmentCreate | ShipmentUpdate) => {
-    onSubmit(data);
+    // Convert datetime-local format back to ISO format for API
+    const formattedData = {
+      ...data,
+      pickup_datetime: data.pickup_datetime 
+        ? new Date(data.pickup_datetime).toISOString()
+        : data.pickup_datetime,
+      delivery_datetime: data.delivery_datetime 
+        ? new Date(data.delivery_datetime).toISOString()
+        : data.delivery_datetime,
+    };
+    
+    // If status is 'agreed' and phone call data is provided, include it in submission
+    const status = 'status' in data ? data.status : undefined;
+    const phoneCall = (status === 'agreed' && phoneCallData.seconds > 0) ? {
+      ...phoneCallData,
+      agreed: true  // Automatically set to true when status is 'agreed'
+    } : undefined;
+    onSubmit(formattedData, phoneCall);
     reset();
+    setPhoneCallData({
+      agreed: true,
+      seconds: 0,
+      call_type: 'manual',
+      sentiment: 'neutral',
+      notes: '',
+      call_id: ''
+    });
     onClose();
   };
 
-  const handlePhoneCallSubmit = () => {
-    if (onAddPhoneCall && initialData && 'id' in initialData && initialData.id) {
-      onAddPhoneCall(initialData.id as string, phoneCallData);
-      setPhoneCallData({
-        agreed: false,
-        seconds: 0,
-        call_type: 'manual',
-        sentiment: 'neutral',
-        notes: '',
-        call_id: ''
-      });
-      setShowPhoneCallForm(false);
-    }
-  };
 
   const handleClose = () => {
     reset();
-    setShowPhoneCallForm(false);
     setPhoneCallData({
-      agreed: false,
+      agreed: true,
       seconds: 0,
       call_type: 'manual',
       sentiment: 'neutral',
@@ -319,153 +336,92 @@ export function LoadForm({
                 )}
               </div>
 
-              <div>
-                <label htmlFor="time_per_call_seconds" className="block text-sm font-medium text-gray-700 mb-1">
-                  Time per Call (seconds)
-                </label>
-                <input
-                  {...register('time_per_call_seconds', { 
-                    min: 0,
-                    valueAsNumber: true
-                  })}
-                  type="number"
-                  step="1"
-                  id="time_per_call_seconds"
-                  className="input"
-                  placeholder="e.g., 120"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Time spent on calls for this load assignment (in seconds)
-                </p>
-                {(errors as any).time_per_call_seconds && (
-                  <p className="mt-1 text-sm text-red-600">{(errors as any).time_per_call_seconds.message}</p>
-                )}
-              </div>
 
-              {/* Phone Call Section */}
-              {initialData && 'id' in initialData && initialData.id && onAddPhoneCall ? (
-                <div className="border-t pt-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-medium text-gray-700 flex items-center">
+              {/* Phone Call Fields - Show when status is 'agreed' */}
+              {status === 'agreed' && (
+                <div className="md:col-span-2">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-blue-800 flex items-center mb-4">
                       <Phone className="h-4 w-4 mr-1" />
-                      Phone Call Tracking
+                      Phone Call Details (Required for Agreed Status)
                     </h4>
-                    <button
-                      type="button"
-                      onClick={() => setShowPhoneCallForm(!showPhoneCallForm)}
-                      className="flex items-center px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Add Call
-                    </button>
-                  </div>
-
-                  {showPhoneCallForm && (
-                    <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Call Duration (seconds)
-                          </label>
-                          <input
-                            type="number"
-                            step="1"
-                            min="0"
-                            value={phoneCallData.seconds}
-                            onChange={(e) => setPhoneCallData({...phoneCallData, seconds: parseFloat(e.target.value) || 0})}
-                            className="input text-sm"
-                            placeholder="0"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Call ID
-                          </label>
-                          <input
-                            type="text"
-                            value={phoneCallData.call_id}
-                            onChange={(e) => setPhoneCallData({...phoneCallData, call_id: e.target.value})}
-                            className="input text-sm"
-                            placeholder="Optional"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Call Type
-                          </label>
-                          <select
-                            value={phoneCallData.call_type}
-                            onChange={(e) => setPhoneCallData({...phoneCallData, call_type: e.target.value as 'manual' | 'agent'})}
-                            className="input text-sm"
-                          >
-                            <option value="manual">Manual</option>
-                            <option value="agent">Agent</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Sentiment
-                          </label>
-                          <select
-                            value={phoneCallData.sentiment}
-                            onChange={(e) => setPhoneCallData({...phoneCallData, sentiment: e.target.value as 'positive' | 'neutral' | 'negative'})}
-                            className="input text-sm"
-                          >
-                            <option value="positive">Positive</option>
-                            <option value="neutral">Neutral</option>
-                            <option value="negative">Negative</option>
-                          </select>
-                        </div>
-                      </div>
-
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Notes
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Call Duration (seconds) *
                         </label>
-                        <textarea
-                          value={phoneCallData.notes}
-                          onChange={(e) => setPhoneCallData({...phoneCallData, notes: e.target.value})}
-                          className="input text-sm"
-                          rows={2}
-                          placeholder="Call notes..."
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          value={phoneCallData.seconds}
+                          onChange={(e) => setPhoneCallData({...phoneCallData, seconds: parseFloat(e.target.value) || 0})}
+                          className="input"
+                          placeholder="0"
+                          required
                         />
                       </div>
-
-                      <div className="flex items-center space-x-3">
-                        <label className="flex items-center">
-                          <input
-                            type="checkbox"
-                            checked={phoneCallData.agreed}
-                            onChange={(e) => setPhoneCallData({...phoneCallData, agreed: e.target.checked})}
-                            className="mr-2"
-                          />
-                          <span className="text-xs text-gray-600">Call resulted in agreement</span>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Call ID
                         </label>
-                      </div>
-
-                      <div className="flex justify-end space-x-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowPhoneCallForm(false)}
-                          className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handlePhoneCallSubmit}
-                          className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                        >
-                          Add Call
-                        </button>
+                        <input
+                          type="text"
+                          value={phoneCallData.call_id}
+                          onChange={(e) => setPhoneCallData({...phoneCallData, call_id: e.target.value})}
+                          className="input"
+                          placeholder="Optional"
+                        />
                       </div>
                     </div>
-                  )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Call Type
+                        </label>
+                        <select
+                          value={phoneCallData.call_type}
+                          onChange={(e) => setPhoneCallData({...phoneCallData, call_type: e.target.value as 'manual' | 'agent'})}
+                          className="input"
+                        >
+                          <option value="manual">Manual</option>
+                          <option value="agent">Agent</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Sentiment
+                        </label>
+                        <select
+                          value={phoneCallData.sentiment}
+                          onChange={(e) => setPhoneCallData({...phoneCallData, sentiment: e.target.value as 'positive' | 'neutral' | 'negative'})}
+                          className="input"
+                        >
+                          <option value="positive">Positive</option>
+                          <option value="neutral">Neutral</option>
+                          <option value="negative">Negative</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Call Notes
+                      </label>
+                      <textarea
+                        value={phoneCallData.notes}
+                        onChange={(e) => setPhoneCallData({...phoneCallData, notes: e.target.value})}
+                        className="input"
+                        rows={3}
+                        placeholder="Describe the call outcome, carrier response, etc..."
+                      />
+                    </div>
+
+                  </div>
                 </div>
-              ) : null}
+              )}
 
               <div>
                 <label htmlFor="weight" className="block text-sm font-medium text-gray-700 mb-1">

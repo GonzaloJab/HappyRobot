@@ -44,19 +44,29 @@ function App() {
   const deleteShipment = useDeleteShipment();
 
   // Handlers
-  const handleCreateShipment = async (data: any) => {
+  const handleCreateShipment = async (data: any, phoneCall?: any) => {
     try {
-      await createShipment.mutateAsync(data);
+      const shipment = await createShipment.mutateAsync(data);
+      
+      // If phone call data is provided, add it to the newly created shipment
+      if (phoneCall && shipment.id) {
+        await api.addPhoneCall(shipment.id, phoneCall);
+      }
     } catch (error) {
       console.error('Failed to create load:', error);
     }
   };
 
-  const handleUpdateShipment = async (data: any) => {
+  const handleUpdateShipment = async (data: any, phoneCall?: any) => {
     if (!editingShipment) return;
     try {
       // Use manual endpoint for frontend updates
       await updateShipmentManual.mutateAsync({ id: editingShipment.id, data });
+      
+      // If phone call data is provided, add it to the updated shipment
+      if (phoneCall) {
+        await api.addPhoneCall(editingShipment.id, phoneCall);
+      }
     } catch (error) {
       console.error('Failed to update load:', error);
     }
@@ -223,7 +233,6 @@ function App() {
         isOpen={!!editingShipment}
         onClose={() => setEditingShipment(null)}
         onSubmit={handleUpdateShipment}
-        onAddPhoneCall={handleAddPhoneCall}
         isLoading={updateShipmentManual.isPending}
         initialData={editingShipment || undefined}
         title="Edit Load"
