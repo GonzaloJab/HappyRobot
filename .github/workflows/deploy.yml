@@ -68,7 +68,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
-          VITE_API_URL: ${{ secrets.ALB_URL || 'http://happyrobot-1700442240.eu-north-1.elb.amazonaws.com' }}
+          VITE_API_URL: ${{ secrets.BACKEND_URL || 'http://happyrobot-1700442240.eu-north-1.elb.amazonaws.com' }}
           VITE_API_KEY: ${{ secrets.API_KEY || 'HapRob-OTVHhErcXLu2eKkUMP6lDtrd8UNi61KZo4FvGALqem0NoJO1uWlz7OywCN0BNoNaG2x5Y' }}
         run: |
           set -euo pipefail

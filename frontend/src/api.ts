@@ -11,10 +11,7 @@ class ApiError extends Error {
 }
 
 async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  // Use /api/ prefix for production, direct URL for development
-  const baseUrl = API_BASE_URL.includes('localhost') ? API_BASE_URL : '';
-  const apiPrefix = API_BASE_URL.includes('localhost') ? '' : '/api';
-  const url = `${baseUrl}${apiPrefix}${endpoint}`;
+  const url = `${API_BASE_URL}${endpoint}`;
   
   const response = await fetch(url, {
     headers: {
